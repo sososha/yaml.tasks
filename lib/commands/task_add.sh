@@ -34,7 +34,7 @@ EOF
 
 # プロジェクト設定ファイルからデフォルト設定を読み込む
 load_project_config() {
-    local config_file="${TASK_DIR}/tasks/config/project_config.yaml"
+    local config_file="${TASKS_DIR}/config/project_config.yaml"
     
     # 設定ファイルが存在しない場合はデフォルト値を作成
     if [[ ! -f "$config_file" ]]; then
@@ -64,7 +64,7 @@ EOF
 # 指定されたプレフィックスでタスクIDを生成
 generate_task_id() {
     local prefix="$1"
-    local tasks_file="${TASK_DIR}/tasks/tasks.yaml"
+    local tasks_file="${TASKS_DIR}/tasks.yaml"
     local next_number=1
     
     if [[ ! -f "$tasks_file" ]]; then
@@ -300,4 +300,9 @@ add_task() {
     fi
     
     return 0
+}
+
+# タスク追加のメインエントリーポイント（task.shから呼び出される）
+task_add() {
+    main "$@"
 } 
