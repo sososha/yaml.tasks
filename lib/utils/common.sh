@@ -181,6 +181,17 @@ validate_array_length() {
 
 # スクリプトの実行に必要な環境変数の設定
 setup_environment() {
+    # 環境変数を初期設定
+    _set_environment_paths
+    
+    log $LOG_LEVEL_DEBUG "Environment setup completed"
+    log $LOG_LEVEL_DEBUG "TASK_DIR: ${TASK_DIR}"
+    log $LOG_LEVEL_DEBUG "CURRENT_TASKS_DIR: ${CURRENT_TASKS_DIR}"
+    log $LOG_LEVEL_DEBUG "TASKS_DIR: ${TASKS_DIR}"
+}
+
+# 環境変数パスの設定（内部関数）
+_set_environment_paths() {
     # カレントディレクトリにtasksフォルダが存在する場合はそれを優先
     if [ -d "${CURRENT_TASKS_DIR}/tasks" ]; then
         export TASKS_DIR="${CURRENT_TASKS_DIR}/tasks"
@@ -191,11 +202,40 @@ setup_environment() {
     export TEMPLATES_DIR="${TASKS_DIR}/templates"
     export CONFIG_DIR="${TASKS_DIR}/config"
     export LIB_DIR="${TASK_DIR}/lib"
+}
+
+# 環境変数を再評価する関数（コマンド実行前に呼び出す）
+refresh_environment() {
+    # カレントディレクトリを更新
+    CURRENT_TASKS_DIR="$(pwd)"
+    export CURRENT_TASKS_DIR
     
-    log $LOG_LEVEL_DEBUG "Environment setup completed"
-    log $LOG_LEVEL_DEBUG "TASK_DIR: ${TASK_DIR}"
+    # 環境変数パスを再設定
+    _set_environment_paths
+    
+    log $LOG_LEVEL_DEBUG "Environment refreshed"
     log $LOG_LEVEL_DEBUG "CURRENT_TASKS_DIR: ${CURRENT_TASKS_DIR}"
     log $LOG_LEVEL_DEBUG "TASKS_DIR: ${TASKS_DIR}"
+}
+
+# 指定されたディレクトリに対して環境変数を設定する関数
+set_environment_for_dir() {
+    local target_dir="$1"
+    
+    # 指定ディレクトリを一時的に作業ディレクトリとして設定
+    local old_dir="$CURRENT_TASKS_DIR"
+    CURRENT_TASKS_DIR="$target_dir"
+    export CURRENT_TASKS_DIR
+    
+    # 環境変数を更新
+    _set_environment_paths
+    
+    log $LOG_LEVEL_DEBUG "Environment set for directory: $target_dir"
+    log $LOG_LEVEL_DEBUG "TASKS_DIR: ${TASKS_DIR}"
+    
+    # 元の作業ディレクトリを復元
+    CURRENT_TASKS_DIR="$old_dir"
+    export CURRENT_TASKS_DIR
 }
 
 # 初期化時に環境をセットアップ

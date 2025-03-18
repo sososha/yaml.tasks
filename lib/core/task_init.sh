@@ -296,25 +296,41 @@ initialize_task_system() {
     log $LOG_LEVEL_INFO "Task management system initialization completed"
 }
 
-# 指定されたディレクトリにタスク管理システムを初期化する関数
+# 指定されたディレクトリにタスク管理システムを初期化する
 initialize_task_system_in_dir() {
-    local TARGET_DIR="$1"
-    log $LOG_LEVEL_INFO "指定されたディレクトリでタスク管理システムを初期化します: $TARGET_DIR"
+    local target_dir="$1"
+    
+    log_info "指定されたディレクトリでタスク管理システムを初期化します: $target_dir"
+    
+    # 指定されたディレクトリに対して環境変数を設定
+    if type set_environment_for_dir >/dev/null 2>&1; then
+        set_environment_for_dir "$target_dir"
+    else
+        # 古い方法でカレントディレクトリを変更
+        local old_dir="$CURRENT_TASKS_DIR"
+        CURRENT_TASKS_DIR="$target_dir"
+        export CURRENT_TASKS_DIR
+        
+        # 環境変数を更新
+        if type _set_environment_paths >/dev/null 2>&1; then
+            _set_environment_paths
+        fi
+    fi
     
     # システム要件の検証
     validate_system_requirements
     
     # ディレクトリ構造の作成
-    create_initial_structure_in_dir "$TARGET_DIR"
+    create_initial_structure_in_dir "$target_dir"
     
     # 各種ファイルの作成
-    create_default_template_in_dir "$TARGET_DIR"
-    create_default_config_in_dir "$TARGET_DIR"
-    create_initial_tasks_file_in_dir "$TARGET_DIR"
-    create_project_tasks_file_in_dir "$TARGET_DIR"
+    create_default_template_in_dir "$target_dir"
+    create_default_config_in_dir "$target_dir"
+    create_initial_tasks_file_in_dir "$target_dir"
+    create_project_tasks_file_in_dir "$target_dir"
     
     # Gitの初期化
-    initialize_git_in_dir "$TARGET_DIR"
+    initialize_git_in_dir "$target_dir"
     
     log $LOG_LEVEL_INFO "タスク管理システムの初期化が完了しました"
 }

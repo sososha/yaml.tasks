@@ -64,7 +64,16 @@ EOF
 # 指定されたプレフィックスでタスクIDを生成
 generate_task_id() {
     local prefix="$1"
+    
+    # 環境変数を再評価して確実にカレントディレクトリのtasksを使用
+    if type refresh_environment >/dev/null 2>&1; then
+        refresh_environment
+    fi
+    
+    # タスクファイルのパスを明示的に設定
     local tasks_file="${TASKS_DIR}/tasks.yaml"
+    log_debug "generate_task_id: タスクファイル: ${tasks_file}"
+    
     local next_number=1
     
     if [[ ! -f "$tasks_file" ]]; then
@@ -227,10 +236,16 @@ add_task() {
     local concerns="$4"
     local parent_id="$5"
     
+    # 環境変数を再評価して確実にカレントディレクトリのtasksを使用
+    if type refresh_environment >/dev/null 2>&1; then
+        refresh_environment
+    fi
+    
     # タスクデータファイルのパス
     local tasks_file="${TASKS_DIR}/tasks.yaml"
     
-    log_debug "タスクファイル: ${tasks_file}"
+    log_debug "add_task: カレントディレクトリ: $(pwd)"
+    log_debug "add_task: タスクファイル: ${tasks_file}"
     
     # タスクファイルが存在しない場合は作成
     if [[ ! -f "$tasks_file" ]]; then
@@ -304,5 +319,14 @@ add_task() {
 
 # タスク追加のメインエントリーポイント（task.shから呼び出される）
 task_add() {
+    # 環境変数を再評価して確実にカレントディレクトリのtasksを使用
+    if type refresh_environment >/dev/null 2>&1; then
+        refresh_environment
+    fi
+    
+    log_debug "task_add: カレントディレクトリ: $(pwd)"
+    log_debug "task_add: TASKS_DIR: ${TASKS_DIR}"
+    
+    # メイン処理を呼び出す
     main "$@"
 } 

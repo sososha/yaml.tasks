@@ -106,6 +106,13 @@ main() {
         return 0
     fi
 
+    # 現在の作業ディレクトリに基づいて環境変数を再評価
+    if type refresh_environment &>/dev/null; then
+        refresh_environment
+    else
+        log_debug "refresh_environment function not found"
+    fi
+
     # 第一引数をコマンドとして処理
     local command="$1"
     shift
@@ -130,27 +137,133 @@ main() {
             fi
             ;;
         add)
-            # 引数をtask_add.shのmain関数に直接渡す
+            # 環境変数を再評価して、確実にカレントディレクトリを利用
+            refresh_environment
+            
+            # task_add.shのtask_add関数を呼び出す
             ADD_PATH=$(find_module_path "commands/task_add.sh")
             if [[ -n "$ADD_PATH" ]]; then
                 source "$ADD_PATH"
-                task_add "$@"
+                # 関数をエクスポートして子プロセスからも見えるようにする
+                export -f task_add 2>/dev/null || true
+                export -f add_task 2>/dev/null || true
+                export -f generate_task_id 2>/dev/null || true
+                
+                # 関数が存在するか確認してから呼び出す
+                if type task_add &>/dev/null; then
+                    task_add "$@"
+                else
+                    # 関数が見つからない場合は直接main関数を呼び出す
+                    log_debug "task_add関数が見つからないため、main関数を直接呼び出します"
+                    main "$@"
+                else
+                    # 関数が見つからない場合は直接スクリプトのmain処理を行う
+                    log_debug "task_add関数が見つからないため、直接処理を実行します"
+                    # タスク名などを解析する処理を追加
+                    local task_name=""
+                    local description=""
+                    local concerns=""
+                    local parent_id=""
+                    local custom_prefix=""
+                    local start_num=""
+                    
+                    # 引数の解析
+                    while [[ $# -gt 0 ]]; do
+                        case "$1" in
+                            -n|--name)
+                                task_name="$2"
+                                shift 2
+                                ;;
+                            -d|--description)
+                                description="$2"
+                                shift 2
+                                ;;
+                            -c|--concerns)
+                                concerns="$2"
+                                shift 2
+                                ;;
+                            -p|--parent)
+                                parent_id="$2"
+                                shift 2
+                                ;;
+                            --prefix)
+                                custom_prefix="$2"
+                                shift 2
+                                ;;
+                            --start-num)
+                                start_num="$2"
+                                shift 2
+                                ;;
+                            -h|--help)
+                                show_add_help
+                                return 0
+                                ;;
+                            *)
+                                log_error "不明なオプション: $1"
+                                show_add_help
+                                return 1
+                                ;;
+                        esac
+                    done
+                    
+                    if [[ -z "$task_name" ]]; then
+                        log_error "タスク名は必須です"
+                        show_add_help
+                        return 1
+                    fi
+                    
+                    # ここでadd_taskを呼び出すか、別の方法でタスクを追加
+                    log_error "タスク追加機能の実装が見つかりません"
+                    return 1
+                fi
             else
                 log_error "タスク追加機能が見つかりません"
                 return 1
             fi
             ;;
+        list)
+            # task_list.shのmain関数を呼び出す
+            LIST_PATH=$(find_module_path "commands/task_list.sh")
+            if [[ -n "$LIST_PATH" ]]; then
+                source "$LIST_PATH"
+                task_list "$@"
+            else
+                log_error "タスク一覧表示機能が見つかりません"
+                return 1
+            fi
+            ;;
         show)
             # task_show.shのmain関数を呼び出す
-
+            SHOW_PATH=$(find_module_path "commands/task_show.sh")
+            if [[ -n "$SHOW_PATH" ]]; then
+                source "$SHOW_PATH"
+                task_show "$@"
+            else
+                log_error "タスク詳細表示機能が見つかりません"
+                return 1
+            fi
             ;;
         edit)
             # task_edit.shのmain関数を呼び出す
-
+            EDIT_PATH=$(find_module_path "commands/task_edit.sh")
+            if [[ -n "$EDIT_PATH" ]]; then
+                source "$EDIT_PATH"
+                task_edit "$@"
+            else
+                log_error "タスク編集機能が見つかりません"
+                return 1
+            fi
             ;;
         delete)
             # task_delete.shのmain関数を呼び出す
-
+            DELETE_PATH=$(find_module_path "commands/task_delete.sh")
+            if [[ -n "$DELETE_PATH" ]]; then
+                source "$DELETE_PATH"
+                task_delete "$@"
+            else
+                log_error "タスク削除機能が見つかりません"
+                return 1
+            fi
             ;;
         subtask)
             # task_subtask.shのtask_subtask関数を呼び出す
@@ -190,14 +303,21 @@ main() {
             ;;
         template)
             # task_template.shのmain関数を呼び出す
-
+            TEMPLATE_PATH=$(find_module_path "commands/task_template.sh")
+            if [[ -n "$TEMPLATE_PATH" ]]; then
+                source "$TEMPLATE_PATH"
+                task_template "$@"
+            else
+                log_error "テンプレート管理機能が見つかりません"
+                return 1
+            fi
             ;;
         update)
             # task_update.shのmain関数を呼び出す
             UPDATE_PATH=$(find_module_path "commands/task_update.sh")
             if [[ -n "$UPDATE_PATH" ]]; then
                 source "$UPDATE_PATH"
-    
+                task_update "$@"
             else
                 log_error "更新機能が見つかりません"
                 return 1
@@ -208,7 +328,7 @@ main() {
             UNINSTALL_PATH=$(find_module_path "commands/task_uninstall.sh")
             if [[ -n "$UNINSTALL_PATH" ]]; then
                 source "$UNINSTALL_PATH"
-    
+                task_uninstall "$@"
             else
                 log_error "アンインストール機能が見つかりません"
                 return 1
