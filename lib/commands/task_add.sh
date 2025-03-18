@@ -221,15 +221,83 @@ fi
 
 # タスクを追加
 add_task() {
-    local name="$1"
-    local description="$2"
-    local concerns="$3"
-    local parent_id="$4"
-    local custom_prefix="$5"
-    local start_num="$6"
+    local task_id="$1"
+    local name="$2"
+    local description="$3"
+    local concerns="$4"
+    local parent_id="$5"
     
     # タスクデータファイルのパス
     local tasks_file="${TASKS_DIR}/tasks.yaml"
     
     log_debug "タスクファイル: ${tasks_file}"
+    
+    # タスクファイルが存在しない場合は作成
+    if [[ ! -f "$tasks_file" ]]; then
+        echo "tasks: []" > "$tasks_file"
+    fi
+    
+    # 新しいタスクのYAMLフォーマット
+    local task_yaml=""
+    task_yaml+="  - id: \"$task_id\"\n"
+    task_yaml+="    name: \"$name\"\n"
+    task_yaml+="    status: \"not_started\"\n"
+    
+    if [[ -n "$description" ]]; then
+        task_yaml+="    description: \"$description\"\n"
+    fi
+    
+    if [[ -n "$concerns" ]]; then
+        task_yaml+="    concerns: \"$concerns\"\n"
+    fi
+    
+    if [[ -n "$parent_id" ]]; then
+        task_yaml+="    parent: \"$parent_id\"\n"
+    fi
+    
+    # タスクをYAMLファイルに追加
+    if [[ -s "$tasks_file" ]]; then
+        # タスクが既に存在するかチェック
+        if yq eval '.tasks[] | select(.id == "'"$task_id"'")' "$tasks_file" | grep -q .; then
+            log_error "タスクIDが既に存在します: $task_id"
+            return 1
+        fi
+        
+        # タスクを追加
+        local temp_file="$(mktemp)"
+        yq eval '.tasks += [{}]' "$tasks_file" > "$temp_file"
+        
+        # 最後のタスクに値を設定
+        local index
+        index=$(yq eval '.tasks | length - 1' "$temp_file")
+        
+        yq eval ".tasks[$index].id = \"$task_id\"" -i "$temp_file"
+        yq eval ".tasks[$index].name = \"$name\"" -i "$temp_file"
+        yq eval ".tasks[$index].status = \"not_started\"" -i "$temp_file"
+        
+        if [[ -n "$description" ]]; then
+            yq eval ".tasks[$index].description = \"$description\"" -i "$temp_file"
+        fi
+        
+        if [[ -n "$concerns" ]]; then
+            yq eval ".tasks[$index].concerns = \"$concerns\"" -i "$temp_file"
+        fi
+        
+        if [[ -n "$parent_id" ]]; then
+            yq eval ".tasks[$index].parent = \"$parent_id\"" -i "$temp_file"
+        fi
+        
+        # 元のファイルを更新
+        mv "$temp_file" "$tasks_file"
+    else
+        # 新規ファイルの場合
+        echo -e "tasks:\n$task_yaml" > "$tasks_file"
+    fi
+    
+    # Gitリポジトリが存在する場合はコミット
+    if [[ -d "${CURRENT_TASKS_DIR}/.git" ]]; then
+        (cd "${CURRENT_TASKS_DIR}" && git add "$tasks_file" && git commit -m "🆕 タスクを追加: $task_id - $name")
+    fi
+    
+    return 0
 } 

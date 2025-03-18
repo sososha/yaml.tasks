@@ -186,10 +186,8 @@ main() {
             [[ -n "$custom_prefix" ]] && args+=(--prefix "$custom_prefix")
             [[ -n "$start_num" ]] && args+=(--start-num "$start_num")
             
-            main "${args[@]}"
-            ;;
-        list)
-            # task_list.shのmain関数を呼び出す
+            # 引数をtask_add.shのmain関数に直接渡す
+            source $(find_module_path "commands/task_add.sh")
             main "$@"
             ;;
         show)
