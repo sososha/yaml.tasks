@@ -73,7 +73,7 @@ task_add() {
         local new_task_id=$(generate_task_id)
 
         # タスクの追加
-        if add_task_to_yaml "$new_task_id" "$task_name" "$status" "$details" "$concerns"; then
+        if add_task "$task_name" "$status" "null" "$details" "$concerns"; then
             log_info "タスクを追加しました: $task_name (ID: $new_task_id)"
             ((success_count++))
         else

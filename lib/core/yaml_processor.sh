@@ -20,295 +20,295 @@ fi
 
 # 定数
 TASKS_YAML_FILE="${TASK_DIR}/tasks/tasks.yaml"
+BACKUP_DIR="${TASK_DIR}/tasks/backups"
 
-# YAMLファイルが存在しない場合は初期化
-initialize_yaml() {
-    if [ ! -f "$TASKS_YAML_FILE" ]; then
-        mkdir -p "$(dirname "$TASKS_YAML_FILE")"
-        cat > "$TASKS_YAML_FILE" << EOF
-tasks: []
-EOF
-        echo "タスクデータファイルを初期化しました: $TASKS_YAML_FILE"
-    fi
-}
-
-# YAMLファイルからタスクデータを読み込む
-load_tasks() {
+# YAMLファイルの存在確認
+validate_yaml_file() {
     if [[ ! -f "$TASKS_YAML_FILE" ]]; then
         log_error "タスクファイルが見つかりません: $TASKS_YAML_FILE"
         return 1
     }
-    
-    # YAMLファイルの構文チェック
-    if ! yq eval '.' "$TASKS_YAML_FILE" > /dev/null 2>&1; then
-        log_error "タスクファイルの形式が無効です: $TASKS_YAML_FILE"
-        return 1
-    }
-    
     return 0
 }
 
-# タスクデータをYAMLファイルに保存
-save_tasks() {
-    local temp_file="${TASKS_YAML_FILE}.tmp"
+# YAMLファイルのバックアップを作成
+backup_yaml_file() {
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="${BACKUP_DIR}/tasks_${timestamp}.yaml"
     
-    if ! yq eval '.' "$1" > "$temp_file" 2>/dev/null; then
-        log_error "タスクデータの保存に失敗しました"
-        rm -f "$temp_file"
+    mkdir -p "$BACKUP_DIR"
+    if ! cp "$TASKS_YAML_FILE" "$backup_file"; then
+        log_error "バックアップの作成に失敗しました"
         return 1
     }
     
-    mv "$temp_file" "$TASKS_YAML_FILE"
+    log_info "バックアップを作成しました: $backup_file"
     return 0
 }
 
 # 新しいタスクIDを生成
 generate_task_id() {
-    local prefix="T"
-    local current_count=0
+    local parent_id="$1"
+    local prefix
+    local current_max
     
-    # 既存のタスクIDの最大値を取得
-    if [[ -f "$TASKS_YAML_FILE" ]]; then
-        current_count=$(yq eval '.tasks[].id' "$TASKS_YAML_FILE" | grep -oE '[0-9]+' | sort -n | tail -n 1)
-    fi
-    
-    # 新しいIDを生成（現在の最大値+1）
-    printf "%s%03d" "$prefix" $((current_count + 1))
-}
-
-# YAMLファイルに新しいタスクを追加
-add_task_to_yaml() {
-    local id="$1"
-    local name="$2"
-    local status="$3"
-    local details="$4"
-    local concerns="$5"
-    
-    # 必須パラメータのチェック
-    if [[ -z "$id" || -z "$name" || -z "$status" ]]; then
-        log_error "必須パラメータが不足しています"
-        return 1
-    }
-    
-    # タスクデータの作成
-    local task_data
-    task_data=$(cat << EOF
-tasks:
-  - id: "$id"
-    name: "$name"
-    status: "$status"
-    parent: null
-    details:
-      content: "${details:-}"
-      design: ""
-      concerns: "${concerns:-}"
-      results: ""
-      result_concerns: ""
-EOF
-)
-    
-    # 既存のタスクファイルが存在しない場合は新規作成
-    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
-        echo "$task_data" > "$TASKS_YAML_FILE"
-        return 0
-    }
-    
-    # 既存のタスクに新しいタスクを追加
-    local temp_file="${TASKS_YAML_FILE}.tmp"
-    yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "$TASKS_YAML_FILE" <(echo "$task_data") > "$temp_file"
-    
-    if [[ $? -eq 0 ]]; then
-        mv "$temp_file" "$TASKS_YAML_FILE"
-        return 0
+    if [[ -n "$parent_id" ]]; then
+        # サブタスクの場合は親タスクのIDをプレフィックスとして使用
+        prefix="${parent_id}"
+        current_max=$(yq eval ".tasks[] | select(.parent == \"$parent_id\") | .id" "$TASKS_YAML_FILE" | grep -o '[0-9]*$' | sort -n | tail -n 1)
     else
-        rm -f "$temp_file"
-        log_error "タスクの追加に失敗しました"
-        return 1
+        # ルートタスクの場合は新しいプレフィックスを生成
+        prefix="PA"
+        current_max=$(yq eval '.tasks[] | select(.parent == null) | .id' "$TASKS_YAML_FILE" | grep -o '[0-9]*$' | sort -n | tail -n 1)
     fi
+    
+    if [[ -z "$current_max" ]]; then
+        current_max=0
+    fi
+    
+    printf "%s%02d" "$prefix" $((current_max + 1))
 }
 
-# タスクのステータスを更新
-update_task_status() {
-    local task_id="$1"
-    local new_status="$2"
-    
-    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
-        log_error "タスクファイルが見つかりません"
-        return 1
-    }
-    
-    # タスクの存在確認
-    if ! yq eval ".tasks[] | select(.id == \"$task_id\")" "$TASKS_YAML_FILE" > /dev/null; then
-        log_error "指定されたタスクが見つかりません: $task_id"
-        return 1
-    }
-    
-    # ステータスの更新
-    local temp_file="${TASKS_YAML_FILE}.tmp"
-    yq eval ".tasks[] |= select(.id == \"$task_id\").status = \"$new_status\"" "$TASKS_YAML_FILE" > "$temp_file"
-    
-    if [[ $? -eq 0 ]]; then
-        mv "$temp_file" "$TASKS_YAML_FILE"
-        return 0
-    else
-        rm -f "$temp_file"
-        log_error "ステータスの更新に失敗しました"
-        return 1
-    fi
-}
-
-# IDでタスクを取得
-get_task_by_id() {
+# タスクの存在確認
+task_exists() {
     local task_id="$1"
     
-    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
-        log_error "タスクファイルが見つかりません"
+    if yq eval ".tasks[] | select(.id == \"$task_id\")" "$TASKS_YAML_FILE" > /dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# タスクの取得
+get_task() {
+    local task_id="$1"
+    
+    if ! task_exists "$task_id"; then
+        log_error "タスクが見つかりません: $task_id"
         return 1
-    }
+    fi
     
     yq eval ".tasks[] | select(.id == \"$task_id\")" "$TASKS_YAML_FILE"
-    return $?
+    return 0
 }
 
-# 親IDに基づいて子タスクを取得
-get_child_tasks() {
-    local parent_id="$1"
-    
-    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
-        log_error "タスクファイルが見つかりません"
-        return 1
-    }
-    
-    yq eval ".tasks[] | select(.parent == \"$parent_id\")" "$TASKS_YAML_FILE"
-    return $?
-}
-
-# 新しいタスクを追加
+# タスクの追加
 add_task() {
     local name="$1"
-    local status="$2"
-    local content="$3"
-    local design="$4"
-    local concerns="$5"
-    local parent="$6"
+    local status="${2:-not_started}"
+    local parent="${3:-null}"
+    local content="${4:-}"
+    local concerns="${5:-}"
     
-    # 現在のタスクデータを読み込む
-    local tasks_json=$(load_tasks)
+    # 親タスクの存在確認
+    if [[ -n "$parent" && "$parent" != "null" ]]; then
+        if ! task_exists "$parent"; then
+            log_error "親タスクが見つかりません: $parent"
+            return 1
+        fi
+    fi
     
     # 新しいタスクIDを生成
-    local new_id=$(generate_task_id "$tasks_json")
+    local new_id
+    new_id=$(generate_task_id "$parent")
     
-    # 新しいタスクのJSONを作成
-    local new_task=$(cat << EOF
-{
-  "id": "$new_id",
-  "name": "$name",
-  "status": "$status",
-  "parent": $([[ -z "$parent" ]] && echo "null" || echo "\"$parent\""),
-  "details": {
-    "content": "$content",
-    "design": "$design",
-    "concerns": "$concerns",
-    "results": "",
-    "result_concerns": ""
-  }
-}
-EOF
-)
+    # 一時ファイルを作成
+    local temp_file
+    temp_file=$(mktemp)
     
-    # タスクを追加
-    local updated_tasks_json=$(echo "$tasks_json" | jq '. += ['"$new_task"']')
+    # 新しいタスクを追加
+    {
+        echo "tasks:"
+        yq eval '.tasks[]' "$TASKS_YAML_FILE" > "$temp_file"
+        cat "$temp_file"
+        echo "- id: \"$new_id\""
+        echo "  name: \"$name\""
+        echo "  status: \"$status\""
+        if [[ -n "$parent" && "$parent" != "null" ]]; then
+            echo "  parent: \"$parent\""
+        else
+            echo "  parent: null"
+        fi
+        echo "  details:"
+        echo "    content: \"$content\""
+        echo "    concerns: \"$concerns\""
+        echo "    results: \"\""
+        echo "    result_concerns: \"\""
+    } > "$TASKS_YAML_FILE"
     
-    # 更新したデータを保存
-    save_tasks "$updated_tasks_json"
-    
+    rm -f "$temp_file"
+    log_info "タスクを追加しました: $new_id"
     echo "$new_id"
+    return 0
+}
+
+# タスクの更新
+update_task() {
+    local task_id="$1"
+    local field="$2"
+    local value="$3"
+    
+    if ! task_exists "$task_id"; then
+        log_error "タスクが見つかりません: $task_id"
+        return 1
+    fi
+    
+    # バックアップを作成
+    backup_yaml_file
+    
+    # フィールドを更新
+    case "$field" in
+        "name"|"status"|"parent")
+            yq eval ".tasks[] |= select(.id == \"$task_id\").$field = \"$value\"" -i "$TASKS_YAML_FILE"
+            ;;
+        "content"|"concerns"|"results"|"result_concerns")
+            yq eval ".tasks[] |= select(.id == \"$task_id\").details.$field = \"$value\"" -i "$TASKS_YAML_FILE"
+            ;;
+        *)
+            log_error "不明なフィールド: $field"
+            return 1
+            ;;
+    esac
+    
+    log_info "タスクを更新しました: $task_id ($field)"
+    return 0
 }
 
 # タスクの削除
 delete_task() {
     local task_id="$1"
     
-    # 現在のタスクデータを読み込む
-    local tasks_json=$(load_tasks)
+    if ! task_exists "$task_id"; then
+        log_error "タスクが見つかりません: $task_id"
+        return 1
+    fi
+    
+    # 子タスクの存在確認
+    if yq eval ".tasks[] | select(.parent == \"$task_id\")" "$TASKS_YAML_FILE" > /dev/null; then
+        log_error "子タスクが存在するため削除できません: $task_id"
+        return 1
+    fi
+    
+    # バックアップを作成
+    backup_yaml_file
     
     # タスクを削除
-    local updated_tasks_json=$(echo "$tasks_json" | jq 'map(select(.id != "'"$task_id"'"))')
+    yq eval "del(.tasks[] | select(.id == \"$task_id\"))" -i "$TASKS_YAML_FILE"
     
-    # 更新したデータを保存
-    save_tasks "$updated_tasks_json"
+    log_info "タスクを削除しました: $task_id"
+    return 0
+}
+
+# タスクの移動（親タスクの変更）
+move_task() {
+    local task_id="$1"
+    local new_parent="${2:-null}"
     
-    echo "タスク $task_id を削除しました"
+    if ! task_exists "$task_id"; then
+        log_error "タスクが見つかりません: $task_id"
+        return 1
+    fi
+    
+    # 新しい親タスクの存在確認（nullでない場合）
+    if [[ -n "$new_parent" && "$new_parent" != "null" ]]; then
+        if ! task_exists "$new_parent"; then
+            log_error "新しい親タスクが見つかりません: $new_parent"
+            return 1
+        fi
+        
+        # 循環参照のチェック
+        local current_parent="$new_parent"
+        while [[ -n "$current_parent" && "$current_parent" != "null" ]]; do
+            if [[ "$current_parent" == "$task_id" ]]; then
+                log_error "循環参照が検出されました"
+                return 1
+            fi
+            current_parent=$(yq eval ".tasks[] | select(.id == \"$current_parent\").parent" "$TASKS_YAML_FILE")
+        done
+    fi
+    
+    # バックアップを作成
+    backup_yaml_file
+    
+    # 親タスクを更新
+    update_task "$task_id" "parent" "$new_parent"
+    
+    log_info "タスクを移動しました: $task_id -> $new_parent"
+    return 0
 }
 
 # タスクの並び替え
 sort_tasks() {
-    local sort_by="$1"
-    local sort_order="$2"
+    local sort_field="$1"
+    local sort_order="${2:-asc}"
     
-    # 現在のタスクデータを読み込む
-    local tasks_json=$(load_tasks)
+    # バックアップを作成
+    backup_yaml_file
     
-    # 並び替え
-    local sorted_tasks_json=""
-    case "$sort_by" in
-        "id")
-            sorted_tasks_json=$(echo "$tasks_json" | jq 'sort_by(.id)')
-            ;;
+    # ソート処理
+    case "$sort_field" in
         "name")
-            sorted_tasks_json=$(echo "$tasks_json" | jq 'sort_by(.name)')
+            yq eval '.tasks |= sort_by(."'"$sort_field"'")' -i "$TASKS_YAML_FILE"
             ;;
         "status")
-            sorted_tasks_json=$(echo "$tasks_json" | jq 'sort_by(.status)')
+            yq eval '.tasks |= sort_by(."'"$sort_field"'")' -i "$TASKS_YAML_FILE"
+            ;;
+        "id")
+            yq eval '.tasks |= sort_by(."'"$sort_field"'")' -i "$TASKS_YAML_FILE"
             ;;
         *)
-            echo "エラー: 不明な並び替え条件: $sort_by"
+            log_error "不明なソートフィールド: $sort_field"
             return 1
             ;;
     esac
-    
-    # 降順の場合は反転
-    if [ "$sort_order" = "desc" ]; then
-        sorted_tasks_json=$(echo "$sorted_tasks_json" | jq 'reverse')
+
+    if [[ "$sort_order" == "desc" ]]; then
+        yq eval '.tasks = reverse(.tasks)' -i "$TASKS_YAML_FILE"
     fi
-    
-    # 更新したデータを保存
-    save_tasks "$sorted_tasks_json"
-    
-    echo "タスクを $sort_by 順に並び替えました"
+
+    log_info "タスクを並び替えました: $sort_field ($sort_order)"
+    return 0
 }
 
-# 複数タスクの一括追加
-add_multiple_tasks() {
-    local names="$1"
-    local statuses="$2"
-    local contents="$3"
-    local designs="$4"
-    local concerns="$5"
-    local parent="$6"
+# タスクの検索
+search_tasks() {
+    local query="$1"
     
-    # コンマで分割
-    IFS=',' read -ra name_array <<< "$names"
-    IFS=',' read -ra status_array <<< "$statuses"
-    IFS=',' read -ra content_array <<< "$contents"
-    IFS=',' read -ra design_array <<< "$designs"
-    IFS=',' read -ra concern_array <<< "$concerns"
+    yq eval ".tasks[] | select(.name | test(\"$query\", \"i\") or .details.content | test(\"$query\", \"i\"))" "$TASKS_YAML_FILE"
+    return 0
+}
+
+# 子タスクの取得
+get_child_tasks() {
+    local parent_id="$1"
     
-    # 各タスクを処理
-    local added_ids=""
-    for i in "${!name_array[@]}"; do
-        local name="${name_array[$i]}"
-        local status="${status_array[$i]:-未着手}"
-        local content="${content_array[$i]:-}"
-        local design="${design_array[$i]:-}"
-        local concern="${concern_array[$i]:-}"
-        
-        # タスクを追加
-        local new_id=$(add_task "$name" "$status" "$content" "$design" "$concern" "$parent")
-        
-        # 追加したIDを記録
-        added_ids="$added_ids $new_id"
-    done
+    if ! task_exists "$parent_id"; then
+        log_error "タスクが見つかりません: $parent_id"
+        return 1
+    fi
     
-    echo "追加したタスクID:$added_ids"
+    yq eval ".tasks[] | select(.parent == \"$parent_id\")" "$TASKS_YAML_FILE"
+    return 0
+}
+
+# タスク統計の取得
+get_task_stats() {
+    local total=$(yq eval '.tasks | length' "$TASKS_YAML_FILE")
+    local completed=$(yq eval '.tasks[] | select(.status == "completed") | length' "$TASKS_YAML_FILE")
+    local in_progress=$(yq eval '.tasks[] | select(.status == "in_progress") | length' "$TASKS_YAML_FILE")
+    local not_started=$(yq eval '.tasks[] | select(.status == "not_started") | length' "$TASKS_YAML_FILE")
+    
+    echo "タスク統計:"
+    echo "  全タスク数: $total"
+    echo "  完了: $completed"
+    echo "  進行中: $in_progress"
+    echo "  未着手: $not_started"
+    
+    if [[ $total -gt 0 ]]; then
+        local completion_rate=$((completed * 100 / total))
+        echo "  完了率: ${completion_rate}%"
+    fi
+    
+    return 0
 }
