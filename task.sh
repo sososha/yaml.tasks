@@ -130,67 +130,11 @@ main() {
             fi
             ;;
         add)
-            # タスク追加コマンドの処理
-            local task_name=""
-            local description=""
-            local concerns=""
-            local parent_id=""
-            local custom_prefix=""
-            local start_num=""
-            
-            # 引数の解析
-            while [[ $# -gt 0 ]]; do
-                case "$1" in
-                    -n|--name)
-                        task_name="$2"
-                        shift 2
-                        ;;
-                    -d|--description)
-                        description="$2"
-                        shift 2
-                        ;;
-                    -c|--concerns)
-                        concerns="$2"
-                        shift 2
-                        ;;
-                    -p|--parent)
-                        parent_id="$2"
-                        shift 2
-                        ;;
-                    --prefix)
-                        custom_prefix="$2"
-                        shift 2
-                        ;;
-                    --start-num)
-                        start_num="$2"
-                        shift 2
-                        ;;
-                    -h|--help)
-                        show_add_help
-                        return 0
-                        ;;
-                    *)
-                        log_error "不明なオプション: $1"
-                        show_add_help
-                        return 1
-                        ;;
-                esac
-            done
-            
-            # 引数を再構築して task_add.sh に渡す
-            local args=()
-            [[ -n "$task_name" ]] && args+=(-n "$task_name")
-            [[ -n "$description" ]] && args+=(-d "$description")
-            [[ -n "$concerns" ]] && args+=(-c "$concerns")
-            [[ -n "$parent_id" ]] && args+=(-p "$parent_id")
-            [[ -n "$custom_prefix" ]] && args+=(--prefix "$custom_prefix")
-            [[ -n "$start_num" ]] && args+=(--start-num "$start_num")
-            
             # 引数をtask_add.shのmain関数に直接渡す
             ADD_PATH=$(find_module_path "commands/task_add.sh")
             if [[ -n "$ADD_PATH" ]]; then
                 source "$ADD_PATH"
-                main "$@"
+                task_add "$@"
             else
                 log_error "タスク追加機能が見つかりません"
                 return 1
@@ -288,5 +232,5 @@ main() {
 
 # スクリプトが直接実行された場合
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
+    task_add "$@"
 fi 
