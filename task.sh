@@ -110,8 +110,7 @@ main() {
     case "$command" in
         start)
             # task_init.shのtask_start関数を呼び出す
-            INIT_PATH=$(find_module_path "commands/task_init.sh")
-            if [[ -n "$INIT_PATH" ]]; then
+            if type task_start >/dev/null 2>&1; then
                 task_start "$@"
             else
                 log_error "初期化機能が見つかりません"
@@ -120,8 +119,7 @@ main() {
             ;;
         init)
             # task_init.shのtask_init関数を呼び出す
-            INIT_PATH=$(find_module_path "commands/task_init.sh")
-            if [[ -n "$INIT_PATH" ]]; then
+            if type task_init >/dev/null 2>&1; then
                 task_init "$@"
             else
                 log_error "再初期化機能が見つかりません"
@@ -204,9 +202,8 @@ main() {
             main "$@"
             ;;
         subtask)
-            # task_subtask.shのmain関数を呼び出す
-            SUBTASK_PATH=$(find_module_path "commands/task_subtask.sh")
-            if [[ -n "$SUBTASK_PATH" ]]; then
+            # task_subtask.shのtask_subtask関数を呼び出す
+            if type task_subtask >/dev/null 2>&1; then
                 task_subtask "$@"
             else
                 log_error "サブタスク機能が見つかりません"
@@ -214,9 +211,8 @@ main() {
             fi
             ;;
         status)
-            # task_status.shのmain関数を呼び出す
-            STATUS_PATH=$(find_module_path "commands/task_status.sh")
-            if [[ -n "$STATUS_PATH" ]]; then
+            # task_status.shのtask_status関数を呼び出す
+            if type task_status >/dev/null 2>&1; then
                 task_status "$@"
             else
                 log_error "ステータス変更機能が見つかりません"
@@ -224,9 +220,8 @@ main() {
             fi
             ;;
         sync)
-            # task_sync.shのmain関数を呼び出す
-            SYNC_PATH=$(find_module_path "commands/task_sync.sh")
-            if [[ -n "$SYNC_PATH" ]]; then
+            # task_sync.shのtask_sync関数を呼び出す
+            if type task_sync >/dev/null 2>&1; then
                 task_sync "$@"
             else
                 log_error "同期機能が見つかりません"
@@ -234,9 +229,8 @@ main() {
             fi
             ;;
         validate)
-            # task_validate.shのmain関数を呼び出す
-            VALIDATE_PATH=$(find_module_path "commands/task_validate.sh")
-            if [[ -n "$VALIDATE_PATH" ]]; then
+            # task_validate.shのtask_validate関数を呼び出す
+            if type task_validate >/dev/null 2>&1; then
                 task_validate "$@"
             else
                 log_error "検証機能が見つかりません"
