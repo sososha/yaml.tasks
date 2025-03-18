@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # 共通ユーティリティと必要なモジュールの読み込み
-source "$(dirname "$0")/../utils/common.sh"
-source "$(dirname "$0")/../utils/validators.sh"
-source "$(dirname "$0")/../core/yaml_processor.sh"
-source "$(dirname "$0")/../core/template_engine.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../utils/common.sh"
+source "${SCRIPT_DIR}/../utils/validators.sh"
+source "${SCRIPT_DIR}/../core/yaml_processor.sh"
+source "${SCRIPT_DIR}/../core/template_engine.sh"
 
 # ヘルプメッセージの表示
 show_add_help() {

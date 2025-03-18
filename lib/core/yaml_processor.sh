@@ -2,7 +2,8 @@
 # YAMLデータ操作モジュール
 
 # 共通ユーティリティの読み込み
-source "$(dirname "$0")/../utils/common.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../utils/common.sh"
 
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
