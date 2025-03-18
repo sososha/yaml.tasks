@@ -187,20 +187,26 @@ main() {
             [[ -n "$start_num" ]] && args+=(--start-num "$start_num")
             
             # 引数をtask_add.shのmain関数に直接渡す
-            source $(find_module_path "commands/task_add.sh")
-            main "$@"
+            ADD_PATH=$(find_module_path "commands/task_add.sh")
+            if [[ -n "$ADD_PATH" ]]; then
+                source "$ADD_PATH"
+                main "$@"
+            else
+                log_error "タスク追加機能が見つかりません"
+                return 1
+            fi
             ;;
         show)
             # task_show.shのmain関数を呼び出す
-            main "$@"
+
             ;;
         edit)
             # task_edit.shのmain関数を呼び出す
-            main "$@"
+
             ;;
         delete)
             # task_delete.shのmain関数を呼び出す
-            main "$@"
+
             ;;
         subtask)
             # task_subtask.shのtask_subtask関数を呼び出す
@@ -240,14 +246,14 @@ main() {
             ;;
         template)
             # task_template.shのmain関数を呼び出す
-            main "$@"
+
             ;;
         update)
             # task_update.shのmain関数を呼び出す
             UPDATE_PATH=$(find_module_path "commands/task_update.sh")
             if [[ -n "$UPDATE_PATH" ]]; then
                 source "$UPDATE_PATH"
-                main "$@"
+    
             else
                 log_error "更新機能が見つかりません"
                 return 1
@@ -258,7 +264,7 @@ main() {
             UNINSTALL_PATH=$(find_module_path "commands/task_uninstall.sh")
             if [[ -n "$UNINSTALL_PATH" ]]; then
                 source "$UNINSTALL_PATH"
-                main "$@"
+    
             else
                 log_error "アンインストール機能が見つかりません"
                 return 1
