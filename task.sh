@@ -31,6 +31,7 @@ show_help() {
   edit      タスクの編集
   delete    タスクの削除
   template  テンプレートの管理
+  update    タスク管理システムの更新
 
 オプション:
   -h, --help   ヘルプの表示
@@ -41,7 +42,7 @@ EOF
 
 # バージョン情報の表示
 show_version() {
-    echo "タスク管理システム v1.0.0"
+    echo "タスク管理システム v1.1.0"
 }
 
 # メインの処理
@@ -134,6 +135,11 @@ main() {
             ;;
         template)
             # テンプレート管理コマンドの処理
+            main "$@"
+            ;;
+        update)
+            # task_update.shのmain関数を呼び出す
+            source "${SCRIPT_DIR}/lib/commands/task_update.sh"
             main "$@"
             ;;
         -h|--help)

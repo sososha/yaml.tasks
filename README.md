@@ -12,6 +12,7 @@
 - 自動バックアップ機能
 - テンプレートベースのカスタマイズ可能な表示
 - カスタムプレフィックスによるタスク分類（PA, BUG, FEATなど）
+- コマンド一つで簡単アップデート
 
 ## インストール
 
@@ -62,6 +63,7 @@ task --help
 - `task subtask` : サブタスクを追加
 - `task status` : タスクのステータスを変更
 - `task template` : タスク表示テンプレートを管理
+- `task update` : タスク管理システムを最新版に更新
 
 ## 階層的なタスク管理
 
@@ -183,6 +185,14 @@ task template --use minimal   # 指定したテンプレートを使用
 task template --create custom # 新しいテンプレートを作成
 ```
 
+### システムの更新
+
+```bash
+task update                  # 最新版に更新
+task update --force          # 確認なしで更新
+task update --repo <URL>     # 特定のリポジトリから更新
+```
+
 ## プロジェクト設定
 
 プロジェクトの設定は `tasks/config/project_config.yaml` で管理されます：
@@ -213,7 +223,7 @@ your-project/
 
 - bash 4.0以上
 - yq (YAML処理用)
-- git (バージョン管理用、オプション)
+- git (バージョン管理用、および更新機能)
 
 ## バックアップと安全性
 
