@@ -10,52 +10,60 @@ source "$(dirname "${BASH_SOURCE[0]}")/../core/task_init.sh"
 # 使用方法の表示
 show_init_help() {
     cat << EOF
-Task Management System - Initialization Commands
+使用法: task start/init [オプション]
 
-Usage:
-    task start              Initialize the task management system
-    task init [--force]     Re-initialize the system (preserves existing data)
+タスク管理システムの初期化
 
-Options:
-    --force    Force re-initialization even if the system is already initialized
-    -h, --help Show this help message
+コマンド:
+  start              タスク管理システムの初期化
+  init [--force]     システムの再初期化（データは保持）
 
-Description:
-    start   - Creates the initial directory structure and files
-    init    - Re-initializes the system while preserving existing task data
+オプション:
+  --force    強制的に再初期化（既に初期化済みの場合）
+  -h, --help このヘルプを表示
+
+説明:
+  start   - 初期ディレクトリ構造とファイルを作成します
+  init    - 既存のタスクデータを保持したままシステムを再初期化します
 EOF
 }
 
 # startコマンドの実装
 task_start() {
-    log $LOG_LEVEL_INFO "Starting task management system initialization..."
+    log_info "タスク管理システムの初期化を開始します..."
     
     # ヘルプの表示
     if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
         show_init_help
-        exit 0
+        return 0
     fi
+    
+    # カレントディレクトリにタスクフォルダを設定
+    local CURRENT_DIR="$(pwd)"
+    local CURRENT_TASKS_DIR="${CURRENT_DIR}/tasks"
     
     # 既に初期化されているかチェック
-    if [ -d "$TASKS_DIR" ] && [ -f "$TASKS_DIR/tasks.yaml" ]; then
-        handle_error "Task management system is already initialized. Use 'task init' to re-initialize."
+    if [ -d "$CURRENT_TASKS_DIR" ] && [ -f "$CURRENT_TASKS_DIR/tasks.yaml" ]; then
+        log_error "タスク管理システムは既に初期化されています"
+        return 1
     fi
     
-    # システムの初期化
-    initialize_task_system
+    # システムの初期化（カレントディレクトリに）
+    initialize_task_system_in_dir "$CURRENT_DIR"
     
-    log $LOG_LEVEL_INFO "Task management system has been initialized successfully"
-    echo "You can now start managing your tasks!"
+    log_info "タスク管理システムを初期化しました"
+    echo "タスク管理を開始できます！"
+    return 0
 }
 
 # initコマンドの実装
 task_init() {
-    log $LOG_LEVEL_INFO "Starting task management system re-initialization..."
+    log_info "タスク管理システムの再初期化を開始します..."
     
     # ヘルプの表示
     if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
         show_init_help
-        exit 0
+        return 0
     fi
     
     # 強制再初期化オプションのチェック
@@ -65,19 +73,25 @@ task_init() {
         shift
     fi
     
+    # カレントディレクトリにタスクフォルダを設定
+    local CURRENT_DIR="$(pwd)"
+    local CURRENT_TASKS_DIR="${CURRENT_DIR}/tasks"
+    
     # 初期化されているかチェック
-    if [ ! -d "$TASKS_DIR" ] || [ ! -f "$TASKS_DIR/tasks.yaml" ]; then
+    if [ ! -d "$CURRENT_TASKS_DIR" ] || [ ! -f "$CURRENT_TASKS_DIR/tasks.yaml" ]; then
         if [ "$force" = true ]; then
-            log $LOG_LEVEL_WARN "Task management system is not initialized, performing fresh initialization..."
-            initialize_task_system
+            log_warn "タスク管理システムは初期化されていません。新規に初期化します..."
+            initialize_task_system_in_dir "$CURRENT_DIR"
         else
-            handle_error "Task management system is not initialized. Use 'task start' for initial setup."
+            log_error "タスク管理システムは初期化されていません。'task start'で初期化してください"
+            return 1
         fi
     else
-        # システムの再初期化
-        reinitialize_task_system
+        # システムの再初期化（カレントディレクトリに）
+        reinitialize_task_system_in_dir "$CURRENT_DIR"
     fi
     
-    log $LOG_LEVEL_INFO "Task management system has been re-initialized successfully"
-    echo "System re-initialization complete. Existing task data has been preserved."
+    log_info "タスク管理システムを再初期化しました"
+    echo "システムの再初期化が完了しました。既存のタスクデータは保持されています。"
+    return 0
 } 
