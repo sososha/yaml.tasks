@@ -19,11 +19,62 @@ CONFIG_FILE="${CONFIG_DIR}/template_config.yaml"
 TASKS_FILE="${TASK_DIR}/tasks/tasks.yaml"
 PROJECT_TASKS_FILE="${TASK_DIR}/tasks/project.tasks"
 
+# デフォルトのテンプレートを作成する関数
+create_default_template() {
+    local template_file="${TEMPLATES_DIR}/default.template"
+    mkdir -p "${TEMPLATES_DIR}"
+    
+    cat > "$template_file" << 'EOF'
+# プロジェクトタスクリスト
+{{#each tasks}}
+## {{id}} {{#if status}}[{{status}}]{{/if}} {{name}}
+{{#if description}}
+説明: {{description}}
+{{/if}}
+{{#if concerns}}
+懸念事項: {{concerns}}
+{{/if}}
+{{#if subtasks.length}}
+サブタスク:
+{{#each subtasks}}
+- {{id}} {{#if status}}[{{status}}]{{/if}} {{name}}
+{{/each}}
+{{/if}}
+
+{{/each}}
+EOF
+    
+    log_info "デフォルトのテンプレートを作成しました: $template_file"
+}
+
+# デフォルトの設定ファイルを作成する関数
+create_default_config() {
+    local config_file="${CONFIG_DIR}/template_config.yaml"
+    mkdir -p "${CONFIG_DIR}"
+    
+    cat > "$config_file" << 'EOF'
+current_template: default
+status_symbols:
+  not_started: "🔴"
+  in_progress: "🟡"
+  completed: "🟢"
+layout:
+  indent: 2
+  show_statistics: true
+display_options:
+  show_empty_fields: false
+  show_statistics: true
+  show_hierarchy: true
+EOF
+    
+    log_info "デフォルトの設定ファイルを作成しました: $config_file"
+}
+
 # テンプレート設定を読み込む
 load_template_config() {
     if [[ ! -f "$CONFIG_FILE" ]]; then
         log_error "テンプレート設定ファイルが見つかりません: $CONFIG_FILE"
-        return 1
+        create_default_config
     fi
     
     # 設定ファイルの構文チェック
@@ -62,7 +113,7 @@ update_template_config() {
 get_current_template() {
     local template_name
     template_name=$(yq eval '.current_template' "$CONFIG_FILE")
-    echo "${TEMPLATES_DIR}/${template_name}.template"
+    echo "${template_name}"
 }
 
 # タスクのステータスを記号に変換
@@ -151,10 +202,9 @@ generate_task_tree() {
     echo "$output"
 }
 
-# タスクファイルをテンプレートから生成
-generate_task_file_from_template() {
+# タスクデータを取得する関数
+get_tasks_data() {
     local tasks_file="${TASK_DIR}/tasks/tasks.yaml"
-    local output_file="${TASK_DIR}/tasks/project.tasks"
     
     # タスクファイルの存在確認
     if [[ ! -f "$tasks_file" ]]; then
@@ -162,175 +212,130 @@ generate_task_file_from_template() {
         return 1
     fi
     
-    # 統計情報の初期化
-    local completed_count=0
-    local in_progress_count=0
-    local not_started_count=0
-    local total_count=0
-    local task_list=""
+    # すべてのタスクデータを取得
+    cat "$tasks_file"
+}
+
+# 再帰的にタスクの子タスクを処理する関数
+process_task_hierarchy() {
+    local task_id="$1"
+    local indent_level="$2"
+    local result=""
     
-    # ルートレベルのタスクを取得
-    local root_tasks
-    root_tasks=$(yq eval '.tasks[] | select(.parent == null) | .id' "$tasks_file")
+    # タスク情報の取得
+    local name=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .name" "$TASKS_FILE")
+    local status=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .status" "$TASKS_FILE")
+    local description=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .description" "$TASKS_FILE")
+    local concerns=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .concerns" "$TASKS_FILE")
+    
+    # インデント生成
+    local indent=""
+    for ((i=0; i<indent_level; i++)); do
+        indent+="  "
+    done
+    
+    # ステータス表示
+    local status_display=""
+    if [[ -n "$status" && "$status" != "null" ]]; then
+        case "$status" in
+            "completed")
+                status_display="✅"
+                ;;
+            "in_progress")
+                status_display="[in_progress]"
+                ;;
+            *)
+                status_display="[not_started]"
+                ;;
+        esac
+    fi
+    
+    # タスク行の追加（末尾に改行文字を挿入）
+    result+="${indent}## $task_id $status_display $name\n"
+    
+    # 説明の追加
+    if [[ -n "$description" && "$description" != "null" ]]; then
+        result+="${indent}説明: $description\n"
+    fi
+    
+    # 懸念事項の追加
+    if [[ -n "$concerns" && "$concerns" != "null" ]]; then
+        result+="${indent}懸念事項: $concerns\n"
+    fi
+    
+    result+="\n"
+    
+    # 子タスクを処理
+    local child_tasks
+    child_tasks=$(yq eval ".tasks[] | select(.parent == \"$task_id\") | .id" "$TASKS_FILE")
+    
+    while IFS= read -r child_id; do
+        if [[ -z "$child_id" ]]; then
+            continue
+        fi
+        result+=$(process_task_hierarchy "$child_id" $((indent_level + 1)))
+    done <<< "$child_tasks"
+    
+    echo -n "$result"
+}
+
+# テンプレートを処理する関数
+process_template() {
+    local template_file="$1"
+    local data="$2"
+    
+    # テンプレートファイルの存在確認
+    if [[ ! -f "$template_file" ]]; then
+        log_error "テンプレートファイルが見つかりません: $template_file"
+        return 1
+    fi
+    
+    # 階層的なタスクリストを生成する
+    local output="# タスク一覧\n\n"
+    
+    # ルートタスク（親を持たないタスク）の一覧を取得
+    local root_tasks=$(yq eval '.tasks[] | select(.parent == null or .parent == "") | .id' "$TASKS_FILE")
     
     # 各ルートタスクを処理
     while IFS= read -r task_id; do
         if [[ -z "$task_id" ]]; then
             continue
         fi
-        
-        # タスク情報の取得
-        local name=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .name" "$tasks_file")
-        local status=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .status" "$tasks_file")
-        local description=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .description" "$tasks_file")
-        local concerns=$(yq eval ".tasks[] | select(.id == \"$task_id\") | .concerns" "$tasks_file")
-        
-        # ステータス記号の設定と統計情報の更新
-        local symbol
-        case "$status" in
-            "completed")
-                symbol="✓"
-                ((completed_count++))
-                ;;
-            "in_progress")
-                symbol="⚡"
-                ((in_progress_count++))
-                ;;
-            *)
-                symbol="□"
-                ((not_started_count++))
-                ;;
-        esac
-        ((total_count++))
-        
-        # タスク行の生成
-        task_list+="${symbol} ${name} (ID: ${task_id})"$'\n'
-        
-        # 詳細情報の追加（空でない場合のみ）
-        if [[ -n "$description" && "$description" != "null" ]]; then
-            task_list+="  Description: ${description}"$'\n'
-        fi
-        if [[ -n "$concerns" && "$concerns" != "null" ]]; then
-            task_list+="  Concerns: ${concerns}"$'\n'
-        fi
-        task_list+=$'\n'
-        
-        # 子タスクを再帰的に処理
-        local child_tasks
-        child_tasks=$(yq eval ".tasks[] | select(.parent == \"$task_id\") | .id" "$tasks_file")
-        
-        while IFS= read -r child_id; do
-            if [[ -z "$child_id" ]]; then
-                continue
-            fi
-            
-            # 子タスク情報の取得
-            local child_name=$(yq eval ".tasks[] | select(.id == \"$child_id\") | .name" "$tasks_file")
-            local child_status=$(yq eval ".tasks[] | select(.id == \"$child_id\") | .status" "$tasks_file")
-            local child_description=$(yq eval ".tasks[] | select(.id == \"$child_id\") | .description" "$tasks_file")
-            local child_concerns=$(yq eval ".tasks[] | select(.id == \"$child_id\") | .concerns" "$tasks_file")
-            
-            # 子タスクのステータス記号の設定と統計情報の更新
-            local child_symbol
-            case "$child_status" in
-                "completed")
-                    child_symbol="✓"
-                    ((completed_count++))
-                    ;;
-                "in_progress")
-                    child_symbol="⚡"
-                    ((in_progress_count++))
-                    ;;
-                *)
-                    child_symbol="□"
-                    ((not_started_count++))
-                    ;;
-            esac
-            ((total_count++))
-            
-            # 子タスク行の生成（インデント付き）
-            task_list+="  ${child_symbol} ${child_name} (ID: ${child_id})"$'\n'
-            
-            # 子タスクの詳細情報の追加（空でない場合のみ）
-            if [[ -n "$child_description" && "$child_description" != "null" ]]; then
-                task_list+="    Description: ${child_description}"$'\n'
-            fi
-            if [[ -n "$child_concerns" && "$child_concerns" != "null" ]]; then
-                task_list+="    Concerns: ${child_concerns}"$'\n'
-            fi
-            task_list+=$'\n'
-            
-            # 孫タスクを再帰的に処理
-            local grandchild_tasks
-            grandchild_tasks=$(yq eval ".tasks[] | select(.parent == \"$child_id\") | .id" "$tasks_file")
-            
-            while IFS= read -r grandchild_id; do
-                if [[ -z "$grandchild_id" ]]; then
-                    continue
-                fi
-                
-                # 孫タスク情報の取得
-                local grandchild_name=$(yq eval ".tasks[] | select(.id == \"$grandchild_id\") | .name" "$tasks_file")
-                local grandchild_status=$(yq eval ".tasks[] | select(.id == \"$grandchild_id\") | .status" "$tasks_file")
-                local grandchild_description=$(yq eval ".tasks[] | select(.id == \"$grandchild_id\") | .description" "$tasks_file")
-                local grandchild_concerns=$(yq eval ".tasks[] | select(.id == \"$grandchild_id\") | .concerns" "$tasks_file")
-                
-                # 孫タスクのステータス記号の設定と統計情報の更新
-                local grandchild_symbol
-                case "$grandchild_status" in
-                    "completed")
-                        grandchild_symbol="✓"
-                        ((completed_count++))
-                        ;;
-                    "in_progress")
-                        grandchild_symbol="⚡"
-                        ((in_progress_count++))
-                        ;;
-                    *)
-                        grandchild_symbol="□"
-                        ((not_started_count++))
-                        ;;
-                esac
-                ((total_count++))
-                
-                # 孫タスク行の生成（インデント付き）
-                task_list+="    ${grandchild_symbol} ${grandchild_name} (ID: ${grandchild_id})"$'\n'
-                
-                # 孫タスクの詳細情報の追加（空でない場合のみ）
-                if [[ -n "$grandchild_description" && "$grandchild_description" != "null" ]]; then
-                    task_list+="      Description: ${grandchild_description}"$'\n'
-                fi
-                if [[ -n "$grandchild_concerns" && "$grandchild_concerns" != "null" ]]; then
-                    task_list+="      Concerns: ${grandchild_concerns}"$'\n'
-                fi
-                task_list+=$'\n'
-            done <<< "$grandchild_tasks"
-        done <<< "$child_tasks"
+        output+=$(process_task_hierarchy "$task_id" 0)
     done <<< "$root_tasks"
     
-    # 統計情報の追加
-    local stats="Task Statistics:"$'\n'
-    stats+="Completed: ${completed_count}"$'\n'
-    stats+="In Progress: ${in_progress_count}"$'\n'
-    stats+="Not Started: ${not_started_count}"$'\n'
-    stats+="Total: ${total_count}"$'\n'
+    # 最終的な出力をより整えるための処理
+    # 連続した改行を1つに統一するなどの整形処理を行う
+    output=$(echo -e "$output" | sed -E 's/\n{3,}/\n\n/g')
     
-    # 出力ファイルの生成
-    {
-        echo "Task Management System"
-        echo "====================="
-        echo
-        echo -n "$task_list"
-        echo "$stats"
-    } > "$output_file"
+    echo -e "$output"
+}
+
+# テンプレートを使ってタスクファイルを生成
+generate_task_file_from_template() {
+    local template_name=$(get_current_template)
+    local template_file="${TEMPLATES_DIR}/${template_name}.template"
     
-    if [[ $? -eq 0 ]]; then
-        log_info "タスクファイルを生成しました: $output_file"
-        return 0
-    else
-        log_error "タスクファイルの生成に失敗しました"
-        return 1
+    # テンプレートファイルの存在確認
+    if [[ ! -f "$template_file" ]]; then
+        log_error "テンプレートファイルが見つかりません: $template_file"
+        create_default_template
+        template_file="${TEMPLATES_DIR}/default.template"
     fi
+    
+    # タスクデータの取得
+    local tasks_data=$(get_tasks_data)
+    
+    # テンプレートエンジンを使ってタスクファイルを生成
+    local output=$(process_template "$template_file" "$tasks_data")
+    
+    # 出力ファイルに書き込み
+    echo "$output" > "$PROJECT_TASKS_FILE"
+    
+    log_info "タスクファイルを生成しました: $PROJECT_TASKS_FILE"
+    log_info "Template generated successfully"
+    
+    return 0
 }
 
 # 子タスクの統計情報を取得

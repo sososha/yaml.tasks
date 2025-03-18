@@ -1,37 +1,31 @@
 #!/bin/bash
 
-# 共通ユーティリティの読み込み
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../utils/common.sh"
-source "${SCRIPT_DIR}/../core/yaml_processor.sh"
-source "${SCRIPT_DIR}/../core/template_engine.sh"
+# スクリプトのディレクトリを取得
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# ヘルプ表示
+# 共通のユーティリティをインポート
+source "${SCRIPT_DIR}/utils/common.sh"
+source "${SCRIPT_DIR}/core/template_engine.sh"
+
+# ヘルプメッセージの表示
 show_template_help() {
     cat << EOF
-使用法: task template <サブコマンド> [オプション]
+Usage: task template [options]
+Manage task list templates.
 
-テンプレートの操作を行います。
+Options:
+  -l, --list               List available templates
+  -s, --show [name]        Show template content
+  -u, --use <name>         Use specified template
+  -c, --create <name>      Create new template
+  -h, --help               Show this help message
 
-サブコマンド:
-    use <テンプレート名>     使用するテンプレートを切り替え
-    config <キー> <値>       テンプレート設定を変更
-    list                     利用可能なテンプレート一覧を表示
-    show [テンプレート名]    テンプレートの内容を表示
-    generate                 現在の設定でタスクファイルを再生成
-    help                     このヘルプを表示
-
-オプション:
-    -f, --force             確認なしで実行
-    -h, --help             このヘルプを表示
-
-例:
-    task template use detailed
-    task template config "symbols.completed" "✅"
-    task template config "format.indent_char" "    "
-    task template list
-    task template show default
-    task template generate
+Examples:
+  task template --list
+  task template --show
+  task template --show detailed
+  task template --use minimal
+  task template --create custom
 EOF
 }
 
@@ -44,7 +38,7 @@ list_templates() {
     for template in "${TEMPLATES_DIR}"/*.template; do
         local template_name
         template_name=$(basename "$template" .template)
-        if [[ "$template" == "$current_template" ]]; then
+        if [[ "$template_name" == "$current_template" ]]; then
             echo "* ${template_name} (現在使用中)"
         else
             echo "  ${template_name}"
@@ -52,37 +46,34 @@ list_templates() {
     done
 }
 
-# テンプレートの内容表示
+# テンプレートの内容を表示
 show_template() {
     local template_name="$1"
     local template_file
     
     if [[ -z "$template_name" ]]; then
-        template_file=$(get_current_template)
-        template_name=$(basename "$template_file" .template)
+        template_name=$(get_current_template)
+        template_file="${TEMPLATES_DIR}/${template_name}.template"
         echo "現在のテンプレート (${template_name}):"
     else
         template_file="${TEMPLATES_DIR}/${template_name}.template"
         echo "テンプレート ${template_name}:"
     fi
     
-    if [[ -f "$template_file" ]]; then
-        echo "---"
-        cat "$template_file"
-        echo "---"
-    else
+    if [[ ! -f "$template_file" ]]; then
         log_error "テンプレートが見つかりません: ${template_name}"
         return 1
     fi
+    
+    echo
+    cat "$template_file"
 }
 
-# テンプレートの使用
+# テンプレートを使用する
 use_template() {
     local template_name="$1"
-    local force="$2"
     local template_file="${TEMPLATES_DIR}/${template_name}.template"
     
-    # テンプレートの存在確認
     if [[ ! -f "$template_file" ]]; then
         log_error "テンプレートが見つかりません: ${template_name}"
         return 1
@@ -91,133 +82,118 @@ use_template() {
     # 現在のテンプレートと同じ場合は確認
     local current_template
     current_template=$(get_current_template)
-    if [[ "$template_file" == "$current_template" ]]; then
+    if [[ "$template_name" == "$current_template" ]]; then
         log_info "既に ${template_name} テンプレートを使用しています"
         return 0
     fi
     
-    # 確認プロンプト
-    if [[ "$force" != "true" ]]; then
-        read -p "テンプレートを ${template_name} に変更しますか？ (y/N): " confirm
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-            log_info "テンプレートの変更をキャンセルしました"
-            return 0
-        fi
-    fi
-    
-    # テンプレートの更新
+    # テンプレート設定を更新
     if update_template_config "current_template" "$template_name"; then
         log_info "テンプレートを ${template_name} に変更しました"
-        generate_task_file_from_template
+        
+        # タスクファイルを再生成
+        if generate_task_file_from_template; then
+            log_info "タスクファイルを再生成しました"
+            return 0
+        else
+            log_error "タスクファイルの再生成に失敗しました"
+            return 1
+        fi
     else
-        log_error "テンプレートの変更に失敗しました"
+        log_error "テンプレート設定の更新に失敗しました"
         return 1
     fi
 }
 
-# 設定の変更
-update_config() {
-    local key="$1"
-    local value="$2"
-    local force="$3"
+# 新しいテンプレートを作成
+create_template() {
+    local template_name="$1"
+    local template_file="${TEMPLATES_DIR}/${template_name}.template"
     
-    # 現在の値を取得
-    local current_value
-    current_value=$(yq eval ".$key" "$CONFIG_FILE")
+    if [[ -f "$template_file" ]]; then
+        log_error "テンプレートはすでに存在します: ${template_name}"
+        return 1
+    fi
     
-    # 現在の値と同じ場合は確認
-    if [[ "$current_value" == "$value" ]]; then
-        log_info "設定 ${key} は既に ${value} に設定されています"
+    # テンプレートディレクトリを確認
+    mkdir -p "${TEMPLATES_DIR}"
+    
+    # デフォルトテンプレートをコピー
+    local default_template="${TEMPLATES_DIR}/default.template"
+    if [[ ! -f "$default_template" ]]; then
+        create_default_template
+    fi
+    
+    cp "$default_template" "$template_file"
+    
+    if [[ $? -eq 0 ]]; then
+        log_info "新しいテンプレートを作成しました: ${template_name}"
+        echo "テンプレートを編集するには: ${template_file}"
         return 0
-    fi
-    
-    # 確認プロンプト
-    if [[ "$force" != "true" ]]; then
-        read -p "設定 ${key} を ${value} に変更しますか？ (y/N): " confirm
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-            log_info "設定の変更をキャンセルしました"
-            return 0
-        fi
-    fi
-    
-    # 設定の更新
-    if update_template_config "$key" "$value"; then
-        log_info "設定 ${key} を ${value} に変更しました"
-        generate_task_file_from_template
     else
-        log_error "設定の変更に失敗しました"
+        log_error "テンプレートの作成に失敗しました"
         return 1
     fi
 }
 
 # メイン処理
 main() {
-    local force="false"
-    
     # 引数がない場合はヘルプを表示
     if [[ $# -eq 0 ]]; then
         show_template_help
         return 0
     fi
     
-    # サブコマンドの取得
-    local subcommand="$1"
-    shift
-    
-    # オプションの解析
+    # 引数の解析
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            -l|--list)
+                list_templates
+                return $?
+                ;;
+            -s|--show)
+                if [[ -n "$2" && "$2" != -* ]]; then
+                    show_template "$2"
+                    shift
+                else
+                    show_template
+                fi
+                return $?
+                ;;
+            -u|--use)
+                if [[ -z "$2" || "$2" == -* ]]; then
+                    log_error "テンプレート名を指定してください"
+                    show_template_help
+                    return 1
+                fi
+                use_template "$2"
+                shift
+                return $?
+                ;;
+            -c|--create)
+                if [[ -z "$2" || "$2" == -* ]]; then
+                    log_error "テンプレート名を指定してください"
+                    show_template_help
+                    return 1
+                fi
+                create_template "$2"
+                shift
+                return $?
+                ;;
             -h|--help)
                 show_template_help
                 return 0
                 ;;
-            -f|--force)
-                force="true"
-                shift
-                ;;
             *)
-                break
+                log_error "不明なオプション: $1"
+                show_template_help
+                return 1
                 ;;
         esac
+        shift
     done
     
-    # サブコマンドの実行
-    case "$subcommand" in
-        use)
-            if [[ -z "$1" ]]; then
-                log_error "テンプレート名を指定してください"
-                return 1
-            fi
-            use_template "$1" "$force"
-            ;;
-        config)
-            if [[ -z "$1" || -z "$2" ]]; then
-                log_error "設定キーと値を指定してください"
-                return 1
-            fi
-            update_config "$1" "$2" "$force"
-            ;;
-        list)
-            list_templates
-            ;;
-        show)
-            show_template "$1"
-            ;;
-        generate)
-            generate_task_file_from_template
-            log_info "タスクファイルを再生成しました"
-            ;;
-        help)
-            show_template_help
-            ;;
-        *)
-            log_error "不明なサブコマンド: $subcommand"
-            show_template_help
-            return 1
-            ;;
-    esac
-    
-    return $?
+    return 0
 }
 
 # スクリプトとして実行された場合

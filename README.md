@@ -1,49 +1,102 @@
-# Task Management System
+# Task.sh
 
-YAMLベースのタスク管理システム。コマンドラインから簡単にタスクの作成、編集、削除、表示が可能です。
+シンプルで階層的なYAMLベースのタスク管理ツール
 
-## 機能
+## 特徴
 
-- タスクの作成 (`task add`)
-- タスクの編集 (`task edit`)
-- タスクの削除 (`task delete`)
-- タスクの一覧表示 (`task list`)
-- タスクの詳細表示 (`task show`)
-- タスクのステータス変更 (`task status`)
-- タスクの階層構造管理（親子関係）
+- YAMLベースのシンプルなタスク管理
+- 4階層までの詳細な階層的タスク構造
+- 直感的なコマンドラインインターフェース
+- マークダウンフォーマットでのタスク表示
+- ✅ 完了タスクの視覚的表示
 - 自動バックアップ機能
-- テンプレートベースのタスク表示
-
-## システム要件
-
-- bash 4.0以上
-- yq (YAML処理用)
-- git (バージョン管理用)
+- テンプレートベースのカスタマイズ可能な表示
 
 ## インストール
 
-1. リポジトリのクローン:
+### GitHubからのインストール
+
 ```bash
-git clone [repository-url]
-cd yaml.tasks
+git clone https://github.com/username/task.sh.git
+cd task.sh/yaml.tasks
+./install.sh
 ```
 
-2. 必要なディレクトリの作成:
+### 直接インストール
+
 ```bash
-mkdir -p tasks/{backups,templates,config}
+curl -sSL https://raw.githubusercontent.com/username/task.sh/main/yaml.tasks/install.sh | bash
 ```
 
-3. 初期設定:
+## 使い方
+
+1. プロジェクトディレクトリで初期化：
 ```bash
-cp config/template_config.yaml.example tasks/config/template_config.yaml
+cd your-project
+task start
 ```
+
+2. タスクの追加：
+```bash
+task add -n "タスク名" -d "説明" -c "懸念事項"
+```
+
+3. タスク一覧の表示：
+```bash
+task list
+```
+
+4. ヘルプの表示：
+```bash
+task --help
+```
+
+## コマンド一覧
+
+- `task start` : タスク管理を開始（初期化）
+- `task add` : タスクを追加
+- `task list` : タスク一覧を表示
+- `task edit` : タスクを編集
+- `task delete` : タスクを削除
+- `task subtask` : サブタスクを追加
+- `task status` : タスクのステータスを変更
+- `task template` : タスク表示テンプレートを管理
+
+## 階層的なタスク管理
+
+Task.shでは、4階層までの詳細なタスク階層を管理できます：
+
+```
+## TA01 [in_progress] プロジェクト管理
+説明: プロジェクト全体の管理
+懸念事項: スケジュール管理が重要
+
+  ## TA04 [in_progress] スケジュール管理
+
+    ## TA13 ✅ 週次計画
+    説明: 毎週の進捗確認
+    懸念事項: 遅延の早期検出
+
+      ## TA22 ✅ 担当者割当
+      説明: 担当者の決定
+```
+
+親子関係のあるタスクはインデントで表現され、視覚的に把握しやすくなっています。
+
+## タスクのステータス
+
+タスクには以下の3つのステータスがあります：
+
+- `not_started` : 未着手（デフォルト）
+- `in_progress` : 進行中
+- `completed` : 完了（✅で表示）
 
 ## 使用方法
 
 ### タスクの作成
 
 ```bash
-./task.sh add -n "タスク名" -d "説明" -c "懸念事項"
+task add -n "タスク名" -d "説明" -c "懸念事項"
 ```
 
 オプション:
@@ -52,10 +105,28 @@ cp config/template_config.yaml.example tasks/config/template_config.yaml
 - `-c, --concerns`: 懸念事項
 - `-p, --parent`: 親タスクのID
 
+### サブタスクの追加
+
+```bash
+task subtask -p "親タスクID" -n "サブタスク名" -d "説明"
+```
+
+または
+
+```bash
+task add -p "親タスクID" -n "サブタスク名"
+```
+
+### 複数タスクの一括追加
+
+```bash
+task add -n "タスク1,タスク2,タスク3" -p "親タスクID"
+```
+
 ### タスクの編集
 
 ```bash
-./task.sh edit -i "タスクID" -n "新しいタスク名" -d "新しい説明" -c "新しい懸念事項"
+task edit -i "タスクID" -n "新しいタスク名" -d "新しい説明" -c "新しい懸念事項"
 ```
 
 オプション:
@@ -68,102 +139,72 @@ cp config/template_config.yaml.example tasks/config/template_config.yaml
 ### タスクの削除
 
 ```bash
-./task.sh delete -i "タスクID"
+task delete -i "タスクID"
 ```
 
 ### タスクの一覧表示
 
 ```bash
-./task.sh list
+task list
 ```
 
-### タスクの詳細表示
+オプション:
+- `-a, --all`: すべてのタスクを表示（デフォルト）
+- `-c, --completed`: 完了したタスクのみ表示
+- `-i, --in-progress`: 進行中のタスクのみ表示
+- `-n, --not-started`: 未着手のタスクのみ表示
+
+### テンプレートの管理
 
 ```bash
-./task.sh show -i "タスクID"
+task template --list          # 利用可能なテンプレート一覧
+task template --show          # 現在のテンプレートを表示
+task template --use minimal   # 指定したテンプレートを使用
+task template --create custom # 新しいテンプレートを作成
 ```
-
-### タスクのステータス変更
-
-```bash
-./task.sh status -i "タスクID" -s "新しいステータス"
-```
-
-ステータス:
-- `not_started`: 未着手
-- `in_progress`: 進行中
-- `completed`: 完了
 
 ## ディレクトリ構造
 
+タスク管理を開始すると、以下のディレクトリ構造が作成されます：
+
 ```
-yaml.tasks/
-├── README.md
-├── task.sh
-├── lib/
-│   ├── commands/
-│   │   ├── task_add.sh
-│   │   ├── task_delete.sh
-│   │   ├── task_edit.sh
-│   │   ├── task_list.sh
-│   │   ├── task_show.sh
-│   │   └── task_status.sh
-│   ├── core/
-│   │   ├── template_engine.sh
-│   │   └── yaml_processor.sh
-│   └── utils/
-│       ├── common.sh
-│       └── validators.sh
+your-project/
 └── tasks/
-    ├── backups/
-    ├── config/
-    ├── templates/
-    ├── tasks.yaml
-    └── project.tasks
+    ├── tasks.yaml        # タスクデータ（YAML形式）
+    ├── project.tasks     # タスク一覧表示（マークダウン形式）
+    ├── backups/          # バックアップファイル
+    ├── config/           # 設定ファイル
+    └── templates/        # 表示テンプレート
 ```
 
-## バックアップ
+## システム要件
 
-- タスクの編集時に自動的にバックアップが作成されます
-- バックアップは `tasks/backups/` ディレクトリに保存されます
-- バックアップファイル名には作成日時が含まれます
+- bash 4.0以上
+- yq (YAML処理用)
+- git (バージョン管理用、オプション)
 
-## テンプレート
+## バックアップと安全性
 
-- タスクの表示形式はテンプレートで管理されます
-- テンプレートは `tasks/templates/` ディレクトリに保存されます
-- テンプレート設定は `tasks/config/template_config.yaml` で管理されます
-
-## エラーハンドリング
-
-- 存在しないタスクIDの指定
-- 存在しない親タスクIDの指定
-- 必須パラメータの欠落
-- YAMLファイルの構文エラー
-- バックアップ作成の失敗
+- タスクの編集・削除時に自動的にバックアップが作成されます
+- バックアップは `tasks/backups/` ディレクトリに保存され、日時が付与されます
+- 誤って削除してもバックアップから復元できます
 
 ## 開発者向け情報
 
 ### モジュール構成
 
 - `commands/`: 各コマンドの実装
-- `core/`: コアロジックの実装
-- `utils/`: ユーティリティ関数
+- `core/`: コアロジック（YAML処理、テンプレートエンジン）
+- `utils/`: ユーティリティ関数と検証機能
 
 ### デバッグモード
 
 環境変数 `DEBUG=1` を設定することで、詳細なログが出力されます：
 
 ```bash
-DEBUG=1 ./task.sh [command]
-```
-
-### テスト
-
-```bash
-./test/run_tests.sh
+DEBUG=1 task [command]
 ```
 
 ## ライセンス
 
-[ライセンス情報] 
+MIT License 
