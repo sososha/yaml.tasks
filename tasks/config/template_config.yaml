@@ -1,0 +1,14 @@
+current_template: "default"
+symbols:
+  completed: "✓"
+  in_progress: "◎"
+  not_started: "□"
+format:
+  indent_char: "  "
+  task_separator: "\n"
+  section_separator: "\n\n"
+sections:
+  - name: "Tasks"
+    enabled: true
+  - name: "Details"
+    enabled: true

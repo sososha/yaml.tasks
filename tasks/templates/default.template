@@ -1,0 +1,20 @@
+# タスク一覧
+
+{{#each tasks}}
+{{#if parent}}{{indent_level parent}}{{/if}}{{status_symbol status}} {{id}}: {{name}}
+{{#if details.content}}
+{{#if parent}}{{indent_level parent}}{{/if}}  内容: {{details.content}}
+{{/if}}
+{{#if details.design}}
+{{#if parent}}{{indent_level parent}}{{/if}}  設計: {{details.design}}
+{{/if}}
+{{#if details.concerns}}
+{{#if parent}}{{indent_level parent}}{{/if}}  懸念: {{details.concerns}}
+{{/if}}
+{{#if details.results}}
+{{#if parent}}{{indent_level parent}}{{/if}}  結果: {{details.results}}
+{{/if}}
+{{#if details.result_concerns}}
+{{#if parent}}{{indent_level parent}}{{/if}}  結果の懸念: {{details.result_concerns}}
+{{/if}}
+{{/each}}
