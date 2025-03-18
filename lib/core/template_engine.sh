@@ -438,8 +438,8 @@ generate_template() {
             *)
                 symbol="□"
                 ((not_started_count++))
-                ;;
-        esac
+            ;;
+    esac
         ((total_count++))
         
         # タスク行の生成

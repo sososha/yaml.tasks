@@ -1,132 +1,158 @@
 #!/bin/bash
 
-# スクリプトのディレクトリを取得（macOS対応）
-get_script_dir() {
-    SOURCE="${BASH_SOURCE[0]}"
-    while [ -h "$SOURCE" ]; do
-        DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-        SOURCE="$(readlink "$SOURCE")"
-        [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-    done
-    echo "$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-}
+# スクリプトのディレクトリを取得
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SCRIPT_DIR="$(get_script_dir)"
-TASK_DIR="$(pwd)"
-LIB_DIR="${SCRIPT_DIR}/lib"
+# タスク管理システムのルートディレクトリを設定
+export TASK_DIR="$SCRIPT_DIR"
 
-VERSION="0.1.0"
+# 共通ユーティリティの読み込み
+source "${SCRIPT_DIR}/lib/utils/common.sh"
 
-# コマンドの使い方を表示
+# すべてのサブコマンドの読み込み
+source "${SCRIPT_DIR}/lib/commands/task_add.sh"
+source "${SCRIPT_DIR}/lib/commands/task_list.sh"
+source "${SCRIPT_DIR}/lib/commands/task_show.sh"
+source "${SCRIPT_DIR}/lib/commands/task_edit.sh"
+source "${SCRIPT_DIR}/lib/commands/task_delete.sh"
+source "${SCRIPT_DIR}/lib/commands/task_template.sh"
+
+# ヘルプメッセージの表示
 show_help() {
-    cat << HELP
-Task Management System v${VERSION}
+    cat << EOF
+使用法: task <コマンド> [オプション]
 
-使い方:
-    task <command> [options]
+タスク管理システム
 
 コマンド:
-    start       タスク管理を開始（初期化）
-    add         タスクを追加
-    list        タスク一覧を表示
-    edit        タスクを編集
-    delete      タスクを削除
-    help        このヘルプを表示
+  add       タスクの追加
+  list      タスクの一覧表示
+  show      タスクの詳細表示
+  edit      タスクの編集
+  delete    タスクの削除
+  template  テンプレートの管理
 
 オプション:
-    -h, --help     ヘルプを表示
-    -v, --version  バージョンを表示
-HELP
+  -h, --help   ヘルプの表示
+
+詳細なヘルプは 'task <コマンド> --help' で確認できます。
+EOF
 }
 
-# バージョン情報を表示
+# バージョン情報の表示
 show_version() {
-    echo "Task Management System v${VERSION}"
+    echo "タスク管理システム v1.0.0"
 }
 
-# タスク管理の初期化
-init_tasks() {
-    if [ ! -d "tasks" ]; then
-        mkdir -p tasks/backups
-        mkdir -p tasks/templates
-        echo "tasks:" > tasks/tasks.yaml
-        echo "タスク管理システムを初期化しました"
-    else
-        echo "タスク管理システムは既に初期化されています"
+# メインの処理
+main() {
+    # コマンドライン引数がない場合
+    if [[ $# -eq 0 ]]; then
+        show_help
+        return 0
     fi
-}
 
-# コマンドの実行
-execute_command() {
+    # 第一引数をコマンドとして処理
     local command="$1"
     shift
-    
+
     case "$command" in
-        "start")
-            init_tasks
+        add)
+            # タスク追加コマンドの処理
+            local task_name=""
+            local description=""
+            local concerns=""
+            local parent_id=""
+            local custom_prefix=""
+            local start_num=""
+            
+            # 引数の解析
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    -n|--name)
+                        task_name="$2"
+                        shift 2
+                        ;;
+                    -d|--description)
+                        description="$2"
+                        shift 2
+                        ;;
+                    -c|--concerns)
+                        concerns="$2"
+                        shift 2
+                        ;;
+                    -p|--parent)
+                        parent_id="$2"
+                        shift 2
+                        ;;
+                    --prefix)
+                        custom_prefix="$2"
+                        shift 2
+                        ;;
+                    --start-num)
+                        start_num="$2"
+                        shift 2
+                        ;;
+                    -h|--help)
+                        show_add_help
+                        return 0
+                        ;;
+                    *)
+                        log_error "不明なオプション: $1"
+                        show_add_help
+                        return 1
+                        ;;
+                esac
+            done
+            
+            # 引数を再構築して task_add.sh に渡す
+            local args=()
+            [[ -n "$task_name" ]] && args+=(-n "$task_name")
+            [[ -n "$description" ]] && args+=(-d "$description")
+            [[ -n "$concerns" ]] && args+=(-c "$concerns")
+            [[ -n "$parent_id" ]] && args+=(-p "$parent_id")
+            [[ -n "$custom_prefix" ]] && args+=(--prefix "$custom_prefix")
+            [[ -n "$start_num" ]] && args+=(--start-num "$start_num")
+            
+            main "${args[@]}"
             ;;
-        "add")
-            if [ -f "${LIB_DIR}/commands/task_add.sh" ]; then
-                source "${LIB_DIR}/commands/task_add.sh"
-                main "$@"
-            else
-                echo "エラー: コマンドの実装が見つかりません"
-                exit 1
-            fi
+        list)
+            # タスク一覧表示コマンドの処理
+            main "$@"
             ;;
-        "list")
-            if [ -f "${LIB_DIR}/commands/task_list.sh" ]; then
-                source "${LIB_DIR}/commands/task_list.sh"
-                main "$@"
-            else
-                echo "エラー: コマンドの実装が見つかりません"
-                exit 1
-            fi
+        show)
+            # タスク詳細表示コマンドの処理
+            main "$@"
             ;;
-        "edit")
-            if [ -f "${LIB_DIR}/commands/task_edit.sh" ]; then
-                source "${LIB_DIR}/commands/task_edit.sh"
-                main "$@"
-            else
-                echo "エラー: コマンドの実装が見つかりません"
-                exit 1
-            fi
+        edit)
+            # タスク編集コマンドの処理
+            main "$@"
             ;;
-        "delete")
-            if [ -f "${LIB_DIR}/commands/task_delete.sh" ]; then
-                source "${LIB_DIR}/commands/task_delete.sh"
-                main "$@"
-            else
-                echo "エラー: コマンドの実装が見つかりません"
-                exit 1
-            fi
+        delete)
+            # タスク削除コマンドの処理
+            main "$@"
+            ;;
+        template)
+            # テンプレート管理コマンドの処理
+            main "$@"
+            ;;
+        -h|--help)
+            show_help
+            ;;
+        -v|--version)
+            show_version
             ;;
         *)
-            echo "エラー: 不明なコマンド '$command'"
-            echo "ヘルプを表示するには: task --help"
-            exit 1
+            log_error "不明なコマンド: $command"
+            show_help
+            return 1
             ;;
     esac
+
+    return 0
 }
 
-# メイン処理
-case "$1" in
-    start|add|list|edit|delete)
-        execute_command "$@"
-        ;;
-    -h|--help)
-        show_help
-        ;;
-    -v|--version)
-        show_version
-        ;;
-    *)
-        if [ -z "$1" ]; then
-            show_help
-        else
-            echo "エラー: 不明なコマンド '$1'"
-            echo "ヘルプを表示するには: task --help"
-            exit 1
-        fi
-        ;;
-esac 
+# スクリプトが直接実行された場合
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi 

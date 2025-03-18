@@ -11,6 +11,7 @@
 - ✅ 完了タスクの視覚的表示
 - 自動バックアップ機能
 - テンプレートベースのカスタマイズ可能な表示
+- カスタムプレフィックスによるタスク分類（PA, BUG, FEATなど）
 
 ## インストール
 
@@ -104,6 +105,25 @@ task add -n "タスク名" -d "説明" -c "懸念事項"
 - `-d, --description`: タスクの説明
 - `-c, --concerns`: 懸念事項
 - `-p, --parent`: 親タスクのID
+- `--prefix`: タスクIDのプレフィックス（TA, PA, BUG など、デフォルト: TA）
+- `--start-num`: タスクID番号の開始値
+
+### カスタムプレフィックスの使用
+
+タスクの種類に応じて異なるプレフィックスを使用できます：
+
+```bash
+# プロジェクトAのタスク
+task add -n "仕様策定" --prefix "PA"  # 例: PA01
+
+# バグ修正タスク
+task add -n "表示崩れの修正" --prefix "BUG"  # 例: BUG02
+
+# 新機能開発
+task add -n "認証機能追加" --prefix "FEAT"  # 例: FEAT03
+```
+
+タスクIDは全体で連続した番号が付与されるため、プレフィックスが変わっても新しいタスクには必ず次の番号が使われます。
 
 ### サブタスクの追加
 
@@ -163,6 +183,17 @@ task template --use minimal   # 指定したテンプレートを使用
 task template --create custom # 新しいテンプレートを作成
 ```
 
+## プロジェクト設定
+
+プロジェクトの設定は `tasks/config/project_config.yaml` で管理されます：
+
+```yaml
+# タスク管理の設定
+prefix: "TA"  # デフォルトのタスクIDプレフィックス
+auto_numbering: true  # 自動採番を行うかどうか
+start_number: 1  # 自動採番の開始番号
+```
+
 ## ディレクトリ構造
 
 タスク管理を開始すると、以下のディレクトリ構造が作成されます：
@@ -174,6 +205,7 @@ your-project/
     ├── project.tasks     # タスク一覧表示（マークダウン形式）
     ├── backups/          # バックアップファイル
     ├── config/           # 設定ファイル
+    │   └── project_config.yaml  # プロジェクト設定
     └── templates/        # 表示テンプレート
 ```
 

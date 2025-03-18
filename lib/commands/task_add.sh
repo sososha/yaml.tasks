@@ -1,62 +1,119 @@
 #!/bin/bash
 
 # スクリプトのディレクトリを取得
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# 共通ユーティリティの読み込み
-source "${SCRIPT_DIR}/../utils/common.sh"
-source "${SCRIPT_DIR}/../utils/validators.sh"
-source "${SCRIPT_DIR}/../core/yaml_processor.sh"
-source "${SCRIPT_DIR}/../core/template_engine.sh"
+# 共通ユーティリティをインポート
+source "${SCRIPT_DIR}/utils/common.sh"
+source "${SCRIPT_DIR}/utils/validators.sh"
+source "${SCRIPT_DIR}/core/yaml_processor.sh"
 
-# タスク管理システムのルートディレクトリを設定（未定義の場合のみ）
-if [[ -z "$TASK_DIR" ]]; then
-    TASK_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-fi
-
-# ヘルプ表示
+# ヘルプメッセージの表示
 show_add_help() {
     cat << EOF
-Usage: task add [options] 
-Add a new task to the task management system.
+使用法: task add [オプション]
 
-Options:
-  -n, --name <n>            Task name (required, multiple tasks separated by comma)
-  -s, --status <status>     Task status (default: not_started)
-                           Valid values: not_started, in_progress, completed
-  -d, --description <text>  Task description
-  -c, --concerns <text>     Task concerns
-  -p, --parent <id>         Parent task ID
-  -h, --help               Show this help message
+タスクを追加します。
 
-Examples:
-  task add -n "実装タスク" -s "in_progress" -d "機能実装" -c "最適化が必要"
-  task add -n "タスク1,タスク2" -s "not_started"
-  task add -n "サブタスク" -p "TA01" -s "not_started"
+オプション:
+  -n, --name <名前>        タスク名（必須）
+  -d, --description <説明> タスクの説明
+  -c, --concerns <懸念事項> タスクの懸念事項
+  -p, --parent <タスクID>   親タスクのID
+  --prefix <プレフィックス> タスクIDのプレフィックス（デフォルト: TA）
+  --start-num <開始番号>   タスクID番号の開始値（デフォルト: 自動）
+  -h, --help               このヘルプを表示
+
+例:
+  task add -n "新機能の実装"
+  task add -n "UI改善" -d "ボタンのデザインを修正" -c "ブランドガイドラインの遵守"
+  task add -n "サブタスク" -p TA01
+  task add -n "プロジェクトA用タスク" --prefix "PA"
 EOF
+}
+
+# プロジェクト設定ファイルからデフォルト設定を読み込む
+load_project_config() {
+    local config_file="${TASK_DIR}/tasks/config/project_config.yaml"
+    
+    # 設定ファイルが存在しない場合はデフォルト値を作成
+    if [[ ! -f "$config_file" ]]; then
+        mkdir -p "$(dirname "$config_file")"
+        cat > "$config_file" << EOF
+# タスク管理の設定
+prefix: "TA"  # タスクIDのプレフィックス
+auto_numbering: true  # 自動採番を行うかどうか
+start_number: 1  # 自動採番の開始番号
+EOF
+        log_debug "デフォルトのプロジェクト設定ファイルを作成しました: $config_file"
+    fi
+    
+    # 設定値を読み込む
+    if command -v yq &>/dev/null; then
+        PREFIX=$(yq eval '.prefix // "TA"' "$config_file")
+        AUTO_NUMBERING=$(yq eval '.auto_numbering // true' "$config_file")
+        START_NUMBER=$(yq eval '.start_number // 1' "$config_file")
+    else
+        # yqが使えない場合はデフォルト値を使用
+        PREFIX="TA"
+        AUTO_NUMBERING=true
+        START_NUMBER=1
+    fi
+}
+
+# 指定されたプレフィックスでタスクIDを生成
+generate_task_id() {
+    local prefix="$1"
+    local tasks_file="${TASK_DIR}/tasks/tasks.yaml"
+    local next_number=1
+    
+    if [[ ! -f "$tasks_file" ]]; then
+        echo "tasks: []" > "$tasks_file"
+    fi
+    
+    # 既存のタスクIDから最大の番号を見つける
+    if [[ -s "$tasks_file" ]]; then
+        # 指定のプレフィックスに一致するIDのみを抽出
+        local max_id
+        max_id=$(grep -o "${prefix}[0-9]\+" "$tasks_file" | sed "s/${prefix}//" | sort -n | tail -1)
+        
+        if [[ -n "$max_id" ]]; then
+            next_number=$((max_id + 1))
+        fi
+    fi
+    
+    # 指定された開始番号がある場合は比較して大きい方を使用
+    if [[ -n "$START_NUMBER" && "$START_NUMBER" -gt "$next_number" ]]; then
+        next_number=$START_NUMBER
+    fi
+    
+    # 2桁でゼロパディング
+    printf "%s%02d" "$prefix" "$next_number"
 }
 
 # メイン処理
 main() {
-    local names=""
-    local status="not_started"
+    # 引数がない場合はヘルプを表示
+    if [[ $# -eq 0 ]]; then
+        show_add_help
+        return 0
+    fi
+    
+    # プロジェクト設定を読み込む
+    load_project_config
+    
+    local task_name=""
     local description=""
     local concerns=""
     local parent_id=""
+    local custom_prefix="$PREFIX"
+    local custom_start_num="$START_NUMBER"
     
-    # オプションの解析
+    # 引数の解析
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -h|--help)
-                show_add_help
-                return 0
-                ;;
             -n|--name)
-                names="$2"
-                shift 2
-                ;;
-            -s|--status)
-                status="$2"
+                task_name="$2"
                 shift 2
                 ;;
             -d|--description)
@@ -71,49 +128,84 @@ main() {
                 parent_id="$2"
                 shift 2
                 ;;
+            --prefix)
+                custom_prefix="$2"
+                shift 2
+                ;;
+            --start-num)
+                custom_start_num="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_add_help
+                return 0
+                ;;
             *)
-                log_error "Unknown option: $1"
+                log_error "不明なオプション: $1"
                 show_add_help
                 return 1
                 ;;
         esac
     done
     
-    # 必須パラメータのチェック
-    if [[ -z "$names" ]]; then
-        log_error "Task name is required"
+    # タスク名は必須
+    if [[ -z "$task_name" ]]; then
+        log_error "タスク名は必須です"
         show_add_help
         return 1
     fi
     
-    # 親タスクの存在確認
-    if [[ -n "$parent_id" ]]; then
-        if ! task_exists "$parent_id"; then
-            log_error "Parent task not found: $parent_id"
-            return 1
-        fi
-    fi
-    
-    # コンマ区切りの名前を配列に分割
-    IFS=',' read -ra name_array <<< "$names"
-    
-    # 各タスクを追加
-    for name in "${name_array[@]}"; do
-        if ! add_task "$name" "$status" "$description" "$concerns" "$parent_id"; then
-            log_error "Failed to add task: $name"
-            continue
-        fi
-        log_info "Added task: $name"
-    done
-    
-    # テンプレートからタスクファイルを生成
-    if ! generate_task_file_from_template; then
-        log_error "Failed to generate task file from template"
+    # 親タスクの存在確認（指定された場合）
+    if [[ -n "$parent_id" ]] && ! task_exists "$parent_id"; then
+        log_error "親タスクが見つかりません: $parent_id"
         return 1
     fi
-    log_info "Template generated successfully"
     
-    return 0
+    # カンマで区切られた複数のタスク名を処理
+    IFS=',' read -ra NAMES <<< "$task_name"
+    local added_tasks=()
+    
+    for name in "${NAMES[@]}"; do
+        # 先頭と末尾の空白を削除
+        name=$(echo "$name" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        
+        if [[ -z "$name" ]]; then
+            continue
+        fi
+        
+        # タスクIDの生成
+        START_NUMBER=$custom_start_num
+        local task_id
+        task_id=$(generate_task_id "$custom_prefix")
+        
+        # タスクの追加
+        if add_task "$task_id" "$name" "$description" "$concerns" "$parent_id"; then
+            log_info "タスクを追加しました: $task_id - $name"
+            added_tasks+=("$task_id")
+            
+            # 起動番号を次に増加
+            ((custom_start_num++))
+        else
+            log_error "タスクの追加に失敗しました: $name"
+        fi
+    done
+    
+    # 追加されたタスクが少なくとも1つ以上ある場合
+    if [[ ${#added_tasks[@]} -gt 0 ]]; then
+        # テンプレートの更新
+        if command -v "${SCRIPT_DIR}/core/template_engine.sh" &>/dev/null; then
+            source "${SCRIPT_DIR}/core/template_engine.sh"
+            if ! generate_task_file_from_template; then
+                log_error "タスクファイルの生成に失敗しました"
+            fi
+        fi
+        
+        # 追加されたタスクIDを返す
+        echo "${added_tasks[@]}"
+        return 0
+    fi
+    
+    return 1
 }
 
 # スクリプトとして実行された場合

@@ -61,22 +61,26 @@ backup_yaml_file() {
 
 # タスクIDの生成
 generate_task_id() {
-    local prefix="TA"
-    local counter_file="${TASK_DIR}/.task_counter"
-    local counter=1
+    local prefix="${1:-TA}"
+    local tasks_file="${TASK_DIR}/tasks/tasks.yaml"
+    local next_number=1
     
-    # カウンターファイルが存在する場合は値を読み込む
-    if [[ -f "$counter_file" ]]; then
-        counter=$(<"$counter_file")
+    if [[ ! -f "$tasks_file" ]]; then
+        echo "tasks: []" > "$tasks_file"
     fi
     
-    # 新しいタスクIDを生成
-    local task_id=$(printf "%s%02d" "$prefix" "$counter")
+    # すべてのタスクIDから最大の番号を見つける（プレフィックスに関係なく）
+    if [[ -s "$tasks_file" ]]; then
+        local max_id
+        max_id=$(grep -o "[A-Z0-9]*[0-9]\+" "$tasks_file" | sed "s/[^0-9]//g" | sort -n | tail -1)
+        
+        if [[ -n "$max_id" ]]; then
+            next_number=$((max_id + 1))
+        fi
+    fi
     
-    # カウンターをインクリメントして保存
-    echo $((counter + 1)) > "$counter_file"
-    
-    echo "$task_id"
+    # 2桁でゼロパディング
+    printf "%s%02d" "$prefix" "$next_number"
 }
 
 # タスクの存在確認
@@ -112,39 +116,49 @@ get_task() {
 
 # タスクの追加
 add_task() {
-    local name="$1"
-    local status="${2:-not_started}"
+    local task_id="$1"
+    local name="$2"
     local description="${3:-}"
     local concerns="${4:-}"
     local parent_id="${5:-}"
+    local status="${6:-not_started}"
     local tasks_file="${TASK_DIR}/tasks/tasks.yaml"
     
     # 入力検証
-    if ! validate_task_name "$name"; then
-        log_error "Invalid task name"
+    if [[ -z "$task_id" ]]; then
+        log_error "タスクIDは必須です"
+        return 1
+    fi
+    
+    if [[ -z "$name" ]]; then
+        log_error "タスク名は必須です"
         return 1
     fi
     
     if ! validate_task_status "$status"; then
-        log_error "Invalid task status"
+        log_error "無効なタスクステータス: $status"
         return 1
     fi
     
     # 親タスクの存在確認（指定されている場合）
     if [[ -n "$parent_id" ]]; then
         if ! task_exists "$parent_id"; then
-            log_error "Parent task not found: $parent_id"
+            log_error "親タスクが見つかりません: $parent_id"
             return 1
         fi
     fi
     
     # タスクファイルの存在確認と作成
     if [[ ! -f "$tasks_file" ]]; then
+        mkdir -p "$(dirname "$tasks_file")"
         echo "tasks: []" > "$tasks_file"
     fi
     
-    # 新しいタスクIDの生成
-    local task_id=$(generate_task_id)
+    # タスクIDの重複チェック
+    if task_exists "$task_id"; then
+        log_error "タスクIDが既に存在します: $task_id"
+        return 1
+    fi
     
     # 一時ファイルの作成
     local temp_file=$(mktemp)
@@ -169,7 +183,7 @@ add_task() {
     
     # タスクを追加
     if ! yq eval -i ".tasks += [load(\"$temp_file\")]" "$tasks_file"; then
-        log_error "Failed to add task to YAML file"
+        log_error "YAMLファイルへのタスク追加に失敗しました"
         rm -f "$temp_file"
         return 1
     fi
