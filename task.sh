@@ -2,12 +2,9 @@
 
 # タスク管理システムのメインスクリプト
 
-# スクリプトが存在するディレクトリの絶対パスを取得
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# タスク管理システムのルートディレクトリを設定
-TASK_DIR="$SCRIPT_DIR"
-export TASK_DIR
+# スクリプトのディレクトリを取得
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+TASK_DIR="$(dirname "$SCRIPT_DIR")"
 
 # 共通の設定と関数をインポート
 source "${SCRIPT_DIR}/lib/utils/common.sh"
