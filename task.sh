@@ -2,6 +2,7 @@
 
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORIGINAL_SCRIPT_DIR="$SCRIPT_DIR"  # オリジナルの値を保存
 
 # タスク管理システムのルートディレクトリを設定
 export TASK_DIR="$SCRIPT_DIR"
@@ -17,13 +18,19 @@ find_module_path() {
         "${SCRIPT_DIR}/${module_name}"
     )
     
+    echo "DEBUG: Searching for module: $module_name" >&2
+    echo "DEBUG: SCRIPT_DIR: $SCRIPT_DIR" >&2
+    
     for path in "${search_paths[@]}"; do
+        echo "DEBUG: Checking path: $path" >&2
         if [[ -f "$path" ]]; then
+            echo "DEBUG: Found module at: $path" >&2
             echo "$path"
             return 0
         fi
     done
     
+    echo "DEBUG: Module not found: $module_name" >&2
     echo ""
     return 1
 }
@@ -55,6 +62,9 @@ COMMANDS=(
 )
 
 for cmd in "${COMMANDS[@]}"; do
+    # 各コマンド読み込み前にSCRIPT_DIRを元の値に戻す
+    SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+    
     CMD_PATH=$(find_module_path "$cmd")
     if [[ -n "$CMD_PATH" ]]; then
         source "$CMD_PATH"
@@ -62,6 +72,9 @@ for cmd in "${COMMANDS[@]}"; do
         log_debug "オプション: $cmd が見つかりません"
     fi
 done
+
+# 最後にSCRIPT_DIRを元の値に戻す
+SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
 
 # ヘルプメッセージの表示
 show_help() {
@@ -119,6 +132,9 @@ main() {
 
     case "$command" in
         start)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_init.shのtask_start関数を呼び出す
             if type task_start >/dev/null 2>&1; then
                 task_start "$@"
@@ -128,6 +144,9 @@ main() {
             fi
             ;;
         init)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_init.shのtask_init関数を呼び出す
             if type task_init >/dev/null 2>&1; then
                 task_init "$@"
@@ -140,10 +159,27 @@ main() {
             # 環境変数を再評価して、確実にカレントディレクトリを利用
             refresh_environment
             
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_add.shのtask_add関数を呼び出す
             ADD_PATH=$(find_module_path "commands/task_add.sh")
+            echo "DEBUG: ADD_PATH: $ADD_PATH" >&2
+            
             if [[ -n "$ADD_PATH" ]]; then
+                echo "DEBUG: Sourcing task_add.sh from: $ADD_PATH" >&2
                 source "$ADD_PATH"
+                
+                # 関数が読み込まれたか確認
+                declare -f task_add >/dev/null 2>&1
+                echo "DEBUG: task_add function exists: $?" >&2
+                
+                declare -f add_task >/dev/null 2>&1
+                echo "DEBUG: add_task function exists: $?" >&2
+                
+                declare -f generate_task_id >/dev/null 2>&1
+                echo "DEBUG: generate_task_id function exists: $?" >&2
+                
                 # 関数をエクスポートして子プロセスからも見えるようにする
                 export -f task_add 2>/dev/null || true
                 export -f add_task 2>/dev/null || true
@@ -151,14 +187,11 @@ main() {
                 
                 # 関数が存在するか確認してから呼び出す
                 if type task_add &>/dev/null; then
+                    echo "DEBUG: Calling task_add function" >&2
                     task_add "$@"
                 else
-                    # 関数が見つからない場合は直接main関数を呼び出す
-                    log_debug "task_add関数が見つからないため、main関数を直接呼び出します"
-                    main "$@"
-                else
                     # 関数が見つからない場合は直接スクリプトのmain処理を行う
-                    log_debug "task_add関数が見つからないため、直接処理を実行します"
+                    echo "DEBUG: task_add function not found, running fallback code" >&2
                     # タスク名などを解析する処理を追加
                     local task_name=""
                     local description=""
@@ -222,6 +255,9 @@ main() {
             fi
             ;;
         list)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_list.shのmain関数を呼び出す
             LIST_PATH=$(find_module_path "commands/task_list.sh")
             if [[ -n "$LIST_PATH" ]]; then
@@ -233,6 +269,9 @@ main() {
             fi
             ;;
         show)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_show.shのmain関数を呼び出す
             SHOW_PATH=$(find_module_path "commands/task_show.sh")
             if [[ -n "$SHOW_PATH" ]]; then
@@ -244,6 +283,9 @@ main() {
             fi
             ;;
         edit)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_edit.shのmain関数を呼び出す
             EDIT_PATH=$(find_module_path "commands/task_edit.sh")
             if [[ -n "$EDIT_PATH" ]]; then
@@ -255,6 +297,9 @@ main() {
             fi
             ;;
         delete)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_delete.shのmain関数を呼び出す
             DELETE_PATH=$(find_module_path "commands/task_delete.sh")
             if [[ -n "$DELETE_PATH" ]]; then
@@ -302,6 +347,9 @@ main() {
             fi
             ;;
         template)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_template.shのmain関数を呼び出す
             TEMPLATE_PATH=$(find_module_path "commands/task_template.sh")
             if [[ -n "$TEMPLATE_PATH" ]]; then
@@ -313,6 +361,9 @@ main() {
             fi
             ;;
         update)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_update.shのmain関数を呼び出す
             UPDATE_PATH=$(find_module_path "commands/task_update.sh")
             if [[ -n "$UPDATE_PATH" ]]; then
@@ -324,6 +375,9 @@ main() {
             fi
             ;;
         uninstall)
+            # SCRIPT_DIRを元の値に戻す
+            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
+            
             # task_uninstall.shのmain関数を呼び出す
             UNINSTALL_PATH=$(find_module_path "commands/task_uninstall.sh")
             if [[ -n "$UNINSTALL_PATH" ]]; then
@@ -352,5 +406,5 @@ main() {
 
 # スクリプトが直接実行された場合
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    task_add "$@"
+    main "$@"
 fi 
