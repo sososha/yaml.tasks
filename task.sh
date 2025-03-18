@@ -5,10 +5,11 @@
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 TASK_DIR="$(pwd)"
+LIB_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/yaml.tasks/lib"
 
-# 共通の設定と関数をインポート
-source "${SCRIPT_DIR}/lib/utils/common.sh"
-source "${SCRIPT_DIR}/lib/utils/validators.sh"
+# 共通ユーティリティの読み込み
+source "${LIB_DIR}/utils/common.sh"
+source "${LIB_DIR}/utils/validators.sh"
 
 # バージョン情報
 VERSION="0.1.0"
@@ -57,58 +58,58 @@ execute_command() {
     
     case "$command" in
         "start")
-            source "${SCRIPT_DIR}/lib/commands/task_start.sh"
+            source "${LIB_DIR}/commands/task_start.sh"
             main "$@"
             ;;
         "init")
-            source "${SCRIPT_DIR}/lib/commands/task_init.sh"
+            source "${LIB_DIR}/commands/task_init.sh"
             main "$@"
             ;;
         "add")
-            source "${SCRIPT_DIR}/lib/commands/task_add.sh"
+            source "${LIB_DIR}/commands/task_add.sh"
             main "$@"
             ;;
         "delete")
-            source "${SCRIPT_DIR}/lib/commands/task_delete.sh"
+            source "${LIB_DIR}/commands/task_delete.sh"
             main "$@"
             ;;
         "subtask")
-            source "${SCRIPT_DIR}/lib/commands/task_subtask.sh"
+            source "${LIB_DIR}/commands/task_subtask.sh"
             main "$@"
             ;;
         "status")
-            source "${SCRIPT_DIR}/lib/commands/task_status.sh"
+            source "${LIB_DIR}/commands/task_status.sh"
             main "$@"
             ;;
         "list")
-            source "${SCRIPT_DIR}/lib/commands/task_list.sh"
+            source "${LIB_DIR}/commands/task_list.sh"
             main "$@"
             ;;
         "template")
-            source "${SCRIPT_DIR}/lib/commands/task_template.sh"
+            source "${LIB_DIR}/commands/task_template.sh"
             main "$@"
             ;;
         "sync")
-            source "${SCRIPT_DIR}/lib/commands/task_sync.sh"
+            source "${LIB_DIR}/commands/task_sync.sh"
             main "$@"
             ;;
         "sort")
-            source "${SCRIPT_DIR}/lib/commands/task_sort.sh"
+            source "${LIB_DIR}/commands/task_sort.sh"
             main "$@"
             ;;
         "validate")
-            source "${SCRIPT_DIR}/lib/commands/task_validate.sh"
+            source "${LIB_DIR}/commands/task_validate.sh"
             main "$@"
             ;;
         "edit")
-            source "${SCRIPT_DIR}/lib/commands/task_edit.sh"
+            source "${LIB_DIR}/commands/task_edit.sh"
             main "$@"
             ;;
         "help")
             if [[ $# -eq 0 ]]; then
                 show_help
             else
-                source "${SCRIPT_DIR}/lib/commands/task_help.sh"
+                source "${LIB_DIR}/commands/task_help.sh"
                 main "$@"
             fi
             ;;
