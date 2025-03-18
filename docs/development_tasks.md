@@ -52,7 +52,7 @@
   - [x] 複数タスク一括追加機能
   - [x] 入力検証機能
   - [x] エラーハンドリング
-- [ ] task_subtask.shの修正（YAMLデータ形式対応）
+- [x] task_subtask.shの修正（YAMLデータ形式対応）
 - [ ] task_status.shの修正（YAMLデータ形式対応）
 - [ ] task_list.shの修正（YAMLデータ形式対応）
 - [ ] task_template.shの新規作成（テンプレート操作）
