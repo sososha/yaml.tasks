@@ -1,6 +1,9 @@
 #!/bin/bash
 # YAMLデータ操作モジュール
 
+# 共通ユーティリティの読み込み
+source "$(dirname "$0")/../utils/common.sh"
+
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -28,29 +31,155 @@ EOF
     fi
 }
 
-# YAMLからタスクデータを読み込む
+# YAMLファイルからタスクデータを読み込む
 load_tasks() {
-    initialize_yaml
+    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
+        log_error "タスクファイルが見つかりません: $TASKS_YAML_FILE"
+        return 1
+    }
     
-    # yqを使用してタスクデータを取得
-    local tasks_json=$(yq eval -o=json '.tasks' "$TASKS_YAML_FILE")
-    echo "$tasks_json"
+    # YAMLファイルの構文チェック
+    if ! yq eval '.' "$TASKS_YAML_FILE" > /dev/null 2>&1; then
+        log_error "タスクファイルの形式が無効です: $TASKS_YAML_FILE"
+        return 1
+    }
+    
+    return 0
 }
 
-# タスクデータをYAMLに保存
+# タスクデータをYAMLファイルに保存
 save_tasks() {
-    local tasks_json="$1"
+    local temp_file="${TASKS_YAML_FILE}.tmp"
     
-    # 一時ファイルを作成
-    local temp_file=$(mktemp)
+    if ! yq eval '.' "$1" > "$temp_file" 2>/dev/null; then
+        log_error "タスクデータの保存に失敗しました"
+        rm -f "$temp_file"
+        return 1
+    }
     
-    # 新しいタスクデータでYAMLを更新
-    echo '{"tasks": '"$tasks_json"'}' | yq eval -P '.' - > "$temp_file"
-    
-    # 元のファイルを置き換え
     mv "$temp_file" "$TASKS_YAML_FILE"
+    return 0
+}
+
+# 新しいタスクIDを生成
+generate_task_id() {
+    local prefix="T"
+    local current_count=0
     
-    echo "タスクデータを保存しました"
+    # 既存のタスクIDの最大値を取得
+    if [[ -f "$TASKS_YAML_FILE" ]]; then
+        current_count=$(yq eval '.tasks[].id' "$TASKS_YAML_FILE" | grep -oE '[0-9]+' | sort -n | tail -n 1)
+    fi
+    
+    # 新しいIDを生成（現在の最大値+1）
+    printf "%s%03d" "$prefix" $((current_count + 1))
+}
+
+# YAMLファイルに新しいタスクを追加
+add_task_to_yaml() {
+    local id="$1"
+    local name="$2"
+    local status="$3"
+    local details="$4"
+    local concerns="$5"
+    
+    # 必須パラメータのチェック
+    if [[ -z "$id" || -z "$name" || -z "$status" ]]; then
+        log_error "必須パラメータが不足しています"
+        return 1
+    }
+    
+    # タスクデータの作成
+    local task_data
+    task_data=$(cat << EOF
+tasks:
+  - id: "$id"
+    name: "$name"
+    status: "$status"
+    parent: null
+    details:
+      content: "${details:-}"
+      design: ""
+      concerns: "${concerns:-}"
+      results: ""
+      result_concerns: ""
+EOF
+)
+    
+    # 既存のタスクファイルが存在しない場合は新規作成
+    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
+        echo "$task_data" > "$TASKS_YAML_FILE"
+        return 0
+    }
+    
+    # 既存のタスクに新しいタスクを追加
+    local temp_file="${TASKS_YAML_FILE}.tmp"
+    yq eval-all 'select(fileIndex == 0) * select(fileIndex == 1)' "$TASKS_YAML_FILE" <(echo "$task_data") > "$temp_file"
+    
+    if [[ $? -eq 0 ]]; then
+        mv "$temp_file" "$TASKS_YAML_FILE"
+        return 0
+    else
+        rm -f "$temp_file"
+        log_error "タスクの追加に失敗しました"
+        return 1
+    fi
+}
+
+# タスクのステータスを更新
+update_task_status() {
+    local task_id="$1"
+    local new_status="$2"
+    
+    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
+        log_error "タスクファイルが見つかりません"
+        return 1
+    }
+    
+    # タスクの存在確認
+    if ! yq eval ".tasks[] | select(.id == \"$task_id\")" "$TASKS_YAML_FILE" > /dev/null; then
+        log_error "指定されたタスクが見つかりません: $task_id"
+        return 1
+    }
+    
+    # ステータスの更新
+    local temp_file="${TASKS_YAML_FILE}.tmp"
+    yq eval ".tasks[] |= select(.id == \"$task_id\").status = \"$new_status\"" "$TASKS_YAML_FILE" > "$temp_file"
+    
+    if [[ $? -eq 0 ]]; then
+        mv "$temp_file" "$TASKS_YAML_FILE"
+        return 0
+    else
+        rm -f "$temp_file"
+        log_error "ステータスの更新に失敗しました"
+        return 1
+    fi
+}
+
+# IDでタスクを取得
+get_task_by_id() {
+    local task_id="$1"
+    
+    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
+        log_error "タスクファイルが見つかりません"
+        return 1
+    }
+    
+    yq eval ".tasks[] | select(.id == \"$task_id\")" "$TASKS_YAML_FILE"
+    return $?
+}
+
+# 親IDに基づいて子タスクを取得
+get_child_tasks() {
+    local parent_id="$1"
+    
+    if [[ ! -f "$TASKS_YAML_FILE" ]]; then
+        log_error "タスクファイルが見つかりません"
+        return 1
+    }
+    
+    yq eval ".tasks[] | select(.parent == \"$parent_id\")" "$TASKS_YAML_FILE"
+    return $?
 }
 
 # 新しいタスクを追加
@@ -93,102 +222,6 @@ EOF
     save_tasks "$updated_tasks_json"
     
     echo "$new_id"
-}
-
-# タスクのステータスを更新
-update_task_status() {
-    local task_id="$1"
-    local new_status="$2"
-    
-    # 現在のタスクデータを読み込む
-    local tasks_json=$(load_tasks)
-    
-    # タスクのステータスを更新
-    local updated_tasks_json=$(echo "$tasks_json" | jq 'map(if .id == "'"$task_id"'" then .status = "'"$new_status"'" else . end)')
-    
-    # 更新したデータを保存
-    save_tasks "$updated_tasks_json"
-    
-    echo "タスク $task_id のステータスを $new_status に更新しました"
-}
-
-# IDでタスクを取得
-get_task_by_id() {
-    local task_id="$1"
-    local tasks_json=$(load_tasks)
-    
-    # タスクを検索
-    local task=$(echo "$tasks_json" | jq '.[] | select(.id == "'"$task_id"'")')
-    
-    echo "$task"
-}
-
-# 親IDに基づいて子タスクを取得
-get_child_tasks() {
-    local parent_id="$1"
-    local tasks_json=$(load_tasks)
-    
-    # 子タスクを検索
-    local child_tasks=$(echo "$tasks_json" | jq '[.[] | select(.parent == "'"$parent_id"'")]')
-    
-    echo "$child_tasks"
-}
-
-# 新しいタスクIDを生成
-generate_task_id() {
-    local tasks_json="$1"
-    
-    # 既存のIDを取得
-    local ids=$(echo "$tasks_json" | jq -r '.[].id')
-    
-    # IDの最大値を取得
-    local max_id=0
-    local prefix=""
-    
-    if [ -z "$ids" ]; then
-        # タスクが存在しない場合は最初のIDを返す
-        echo "PA01"
-        return
-    fi
-    
-    # 既存のIDから最大値を見つける
-    while read -r id; do
-        if [[ -z "$id" ]]; then
-            continue
-        fi
-        
-        # IDのプレフィックスと数値部分を分離
-        local id_prefix="${id:0:2}"
-        local id_number="${id:2}"
-        
-        # 数値部分を10進数として扱う
-        id_number=$((10#$id_number))
-        
-        # プレフィックスが同じ場合は数値を比較
-        if [[ "$id_prefix" == "$prefix" && $id_number -gt $max_id ]]; then
-            max_id=$id_number
-        elif [[ -z "$prefix" ]]; then
-            # 初回の場合はプレフィックスを設定
-            prefix="$id_prefix"
-            max_id=$id_number
-        fi
-    done <<< "$ids"
-    
-    # 次のIDを生成
-    local next_id=$((max_id + 1))
-    printf "%s%02d" "$prefix" "$next_id"
-}
-
-# タスクの存在確認
-task_exists() {
-    local task_id="$1"
-    local task=$(get_task_by_id "$task_id")
-    
-    if [ -z "$task" ]; then
-        return 1
-    else
-        return 0
-    fi
 }
 
 # タスクの削除
