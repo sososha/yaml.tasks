@@ -31,10 +31,10 @@
   - [x] タスク追加機能
   - [x] タスクステータス更新機能
   - [x] タスク検索機能
-- [ ] テンプレートエンジン（template_engine.sh）の実装
-  - [ ] テンプレート読み込み機能
-  - [ ] テンプレート適用機能
-  - [ ] 設定管理機能
+- [x] テンプレートエンジン（template_engine.sh）の実装
+  - [x] テンプレート読み込み機能
+  - [x] テンプレート適用機能
+  - [x] 設定管理機能
 - [x] 既存のtask_processor.shの修正
 - [x] 共通ユーティリティ関数の実装
   - [x] ログ出力機能
@@ -53,9 +53,9 @@
   - [x] 入力検証機能
   - [x] エラーハンドリング
 - [x] task_subtask.shの修正（YAMLデータ形式対応）
-- [ ] task_status.shの修正（YAMLデータ形式対応）
+- [x] task_status.shの修正（YAMLデータ形式対応）
 - [x] task_list.shの修正（YAMLデータ形式対応）
-- [ ] task_template.shの新規作成（テンプレート操作）
+- [x] task_template.shの新規作成（テンプレート操作）
 - [ ] task_sync.shの新規作成（データと表示の同期）
 - [x] task_sort.shの修正（YAMLデータ形式対応）
 
