@@ -7,7 +7,9 @@ INSTALL_CONFIG="${INSTALL_BIN}/config"
 
 # インストール先ディレクトリの作成
 mkdir -p "${INSTALL_BIN}"
-mkdir -p "${INSTALL_LIB}"
+mkdir -p "${INSTALL_LIB}/commands"
+mkdir -p "${INSTALL_LIB}/core"
+mkdir -p "${INSTALL_LIB}/utils"
 mkdir -p "${INSTALL_CONFIG}"
 
 # スクリプトのディレクトリを取得
@@ -18,7 +20,9 @@ cp "${SCRIPT_DIR}/task.sh" "${INSTALL_BIN}/task"
 chmod +x "${INSTALL_BIN}/task"
 
 # ライブラリファイルをコピー
-cp -r "${SCRIPT_DIR}/lib"/* "${INSTALL_LIB}/"
+cp -r "${SCRIPT_DIR}/lib/commands"/* "${INSTALL_LIB}/commands/"
+cp -r "${SCRIPT_DIR}/lib/core"/* "${INSTALL_LIB}/core/"
+cp -r "${SCRIPT_DIR}/lib/utils"/* "${INSTALL_LIB}/utils/"
 
 # 設定ファイルをコピー
 if [ -d "${SCRIPT_DIR}/config" ]; then
@@ -28,6 +32,7 @@ fi
 # テンプレートディレクトリを作成
 mkdir -p "${INSTALL_BIN}/tasks/templates"
 mkdir -p "${INSTALL_BIN}/tasks/backups"
+mkdir -p "${INSTALL_BIN}/tasks/config"
 
 echo "インストールが完了しました"
 echo "task コマンドが使えるようになりました"

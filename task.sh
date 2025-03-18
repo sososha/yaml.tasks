@@ -6,16 +6,53 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # タスク管理システムのルートディレクトリを設定
 export TASK_DIR="$SCRIPT_DIR"
 
-# 共通ユーティリティの読み込み
-source "${SCRIPT_DIR}/lib/utils/common.sh"
+# 共通パスの検索
+find_module_path() {
+    local module_name="$1"
+    local search_paths=(
+        "${SCRIPT_DIR}/lib/${module_name}"
+        "${SCRIPT_DIR}/${module_name}"
+    )
+    
+    for path in "${search_paths[@]}"; do
+        if [[ -f "$path" ]]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    
+    echo ""
+    return 1
+}
 
-# すべてのサブコマンドの読み込み
-source "${SCRIPT_DIR}/lib/commands/task_add.sh"
-source "${SCRIPT_DIR}/lib/commands/task_list.sh"
-source "${SCRIPT_DIR}/lib/commands/task_show.sh"
-source "${SCRIPT_DIR}/lib/commands/task_edit.sh"
-source "${SCRIPT_DIR}/lib/commands/task_delete.sh"
-source "${SCRIPT_DIR}/lib/commands/task_template.sh"
+# 共通ユーティリティの読み込み
+COMMON_PATH=$(find_module_path "utils/common.sh")
+if [[ -n "$COMMON_PATH" ]]; then
+    source "$COMMON_PATH"
+else
+    echo "エラー: common.sh が見つかりません"
+    exit 1
+fi
+
+# サブコマンドの読み込み
+COMMANDS=(
+    "commands/task_add.sh"
+    "commands/task_list.sh"
+    "commands/task_show.sh"
+    "commands/task_edit.sh"
+    "commands/task_delete.sh"
+    "commands/task_template.sh"
+    "commands/task_update.sh"
+)
+
+for cmd in "${COMMANDS[@]}"; do
+    CMD_PATH=$(find_module_path "$cmd")
+    if [[ -n "$CMD_PATH" ]]; then
+        source "$CMD_PATH"
+    else
+        log_debug "オプション: $cmd が見つかりません"
+    fi
+done
 
 # ヘルプメッセージの表示
 show_help() {
@@ -118,29 +155,35 @@ main() {
             main "${args[@]}"
             ;;
         list)
-            # タスク一覧表示コマンドの処理
+            # task_list.shのmain関数を呼び出す
             main "$@"
             ;;
         show)
-            # タスク詳細表示コマンドの処理
+            # task_show.shのmain関数を呼び出す
             main "$@"
             ;;
         edit)
-            # タスク編集コマンドの処理
+            # task_edit.shのmain関数を呼び出す
             main "$@"
             ;;
         delete)
-            # タスク削除コマンドの処理
+            # task_delete.shのmain関数を呼び出す
             main "$@"
             ;;
         template)
-            # テンプレート管理コマンドの処理
+            # task_template.shのmain関数を呼び出す
             main "$@"
             ;;
         update)
             # task_update.shのmain関数を呼び出す
-            source "${SCRIPT_DIR}/lib/commands/task_update.sh"
-            main "$@"
+            UPDATE_PATH=$(find_module_path "commands/task_update.sh")
+            if [[ -n "$UPDATE_PATH" ]]; then
+                source "$UPDATE_PATH"
+                main "$@"
+            else
+                log_error "更新機能が見つかりません"
+                return 1
+            fi
             ;;
         -h|--help)
             show_help
