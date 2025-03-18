@@ -71,7 +71,7 @@ create_directories() {
     mkdir -p "${INSTALL_DIR}"/{lib,config,tasks/{backups,templates}}
     
     # ライブラリのコピー
-    cp -r "${SCRIPT_DIR}/lib" "${INSTALL_DIR}/"
+    cp -r "${SCRIPT_DIR}/lib"/* "${INSTALL_DIR}/lib/"
     
     # 設定ファイルのコピー
     if [[ ! -f "${INSTALL_DIR}/config/template_config.yaml" ]]; then
