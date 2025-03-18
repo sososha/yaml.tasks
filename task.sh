@@ -6,6 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # タスク管理システムのルートディレクトリを設定
 export TASK_DIR="$SCRIPT_DIR"
 
+# カレントディレクトリ（作業ディレクトリ）を設定
+export CURRENT_TASKS_DIR="$(pwd)"
+
 # 共通パスの検索
 find_module_path() {
     local module_name="$1"

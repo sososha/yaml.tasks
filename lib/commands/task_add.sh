@@ -93,6 +93,12 @@ generate_task_id() {
 
 # メイン処理
 main() {
+    # カレントディレクトリにtasksフォルダが存在するか確認
+    if [[ ! -d "${CURRENT_TASKS_DIR}/tasks" ]]; then
+        log_error "タスク管理システムが初期化されていません。'task start'を実行してください。"
+        exit 1
+    fi
+    
     # 引数がない場合はヘルプを表示
     if [[ $# -eq 0 ]]; then
         show_add_help
@@ -212,3 +218,18 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi 
+
+# タスクを追加
+add_task() {
+    local name="$1"
+    local description="$2"
+    local concerns="$3"
+    local parent_id="$4"
+    local custom_prefix="$5"
+    local start_num="$6"
+    
+    # タスクデータファイルのパス
+    local tasks_file="${TASKS_DIR}/tasks.yaml"
+    
+    log_debug "タスクファイル: ${tasks_file}"
+} 

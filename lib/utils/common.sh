@@ -20,8 +20,15 @@ CURRENT_LOG_LEVEL=$LOG_LEVEL_INFO
 
 # タスク管理システムのルートディレクトリを設定
 if [ -z "$TASK_DIR" ]; then
+    # task.shスクリプトですでに設定されている場合は使用
     TASK_DIR="$(pwd)"
     export TASK_DIR
+fi
+
+# 作業ディレクトリ（カレントディレクトリ）
+if [ -z "$CURRENT_TASKS_DIR" ]; then
+    CURRENT_TASKS_DIR="$(pwd)"
+    export CURRENT_TASKS_DIR
 fi
 
 # ログ出力関数
@@ -174,14 +181,21 @@ validate_array_length() {
 
 # スクリプトの実行に必要な環境変数の設定
 setup_environment() {
-    # 各種ディレクトリパスの設定
-    export TASKS_DIR="${TASK_DIR}/tasks"
+    # カレントディレクトリにtasksフォルダが存在する場合はそれを優先
+    if [ -d "${CURRENT_TASKS_DIR}/tasks" ]; then
+        export TASKS_DIR="${CURRENT_TASKS_DIR}/tasks"
+    else
+        export TASKS_DIR="${TASK_DIR}/tasks"
+    fi
+    
     export TEMPLATES_DIR="${TASKS_DIR}/templates"
     export CONFIG_DIR="${TASKS_DIR}/config"
     export LIB_DIR="${TASK_DIR}/lib"
     
     log $LOG_LEVEL_DEBUG "Environment setup completed"
     log $LOG_LEVEL_DEBUG "TASK_DIR: ${TASK_DIR}"
+    log $LOG_LEVEL_DEBUG "CURRENT_TASKS_DIR: ${CURRENT_TASKS_DIR}"
+    log $LOG_LEVEL_DEBUG "TASKS_DIR: ${TASKS_DIR}"
 }
 
 # 初期化時に環境をセットアップ
