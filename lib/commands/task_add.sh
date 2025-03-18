@@ -1,107 +1,122 @@
 #!/bin/bash
 
-# 共通ユーティリティと必要なモジュールの読み込み
+# スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 共通ユーティリティの読み込み
 source "${SCRIPT_DIR}/../utils/common.sh"
 source "${SCRIPT_DIR}/../utils/validators.sh"
 source "${SCRIPT_DIR}/../core/yaml_processor.sh"
 source "${SCRIPT_DIR}/../core/template_engine.sh"
 
-# ヘルプメッセージの表示
+# タスク管理システムのルートディレクトリを設定（未定義の場合のみ）
+if [[ -z "$TASK_DIR" ]]; then
+    TASK_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+fi
+
+# ヘルプ表示
 show_add_help() {
     cat << EOF
-Usage: task add <task_name> [status] [details] [concerns]
-   or: task add "<task1,task2,task3>" ["status1,status2,status3"]
+Usage: task add [options] 
+Add a new task to the task management system.
 
 Options:
-    task_name   タスク名（必須）。複数のタスクはカンマ区切りで指定
-    status      タスクのステータス（オプション、デフォルト: not_started）
-                複数のタスクの場合はカンマ区切りで指定
-    details     タスクの詳細情報（オプション）
-    concerns    考慮事項（オプション）
+  -n, --name <n>            Task name (required, multiple tasks separated by comma)
+  -s, --status <status>     Task status (default: not_started)
+                           Valid values: not_started, in_progress, completed
+  -d, --description <text>  Task description
+  -c, --concerns <text>     Task concerns
+  -p, --parent <id>         Parent task ID
+  -h, --help               Show this help message
 
 Examples:
-    task add "新機能の実装"
-    task add "バグ修正" "in_progress" "認証機能のバグ" "セキュリティ考慮"
-    task add "タスク1,タスク2,タスク3" "not_started,in_progress,completed"
+  task add -n "実装タスク" -s "in_progress" -d "機能実装" -c "最適化が必要"
+  task add -n "タスク1,タスク2" -s "not_started"
+  task add -n "サブタスク" -p "TA01" -s "not_started"
 EOF
-    exit 0
-}
-
-# タスク追加処理のメイン関数
-task_add() {
-    local task_names="$1"
-    local statuses="$2"
-    local details="$3"
-    local concerns="$4"
-
-    # 引数チェック
-    if [[ -z "$task_names" ]]; then
-        show_add_help
-        return 1
-    fi
-
-    # タスク名をカンマで分割
-    IFS=',' read -ra task_name_array <<< "$task_names"
-    
-    # ステータスをカンマで分割（指定がない場合はデフォルト値を使用）
-    local status_array=()
-    if [[ -n "$statuses" ]]; then
-        IFS=',' read -ra status_array <<< "$statuses"
-    fi
-
-    # 各タスクを処理
-    local success_count=0
-    local total_tasks=${#task_name_array[@]}
-
-    for ((i=0; i<${#task_name_array[@]}; i++)); do
-        local task_name="${task_name_array[$i]}"
-        local status="${status_array[$i]:-not_started}"
-
-        # 入力検証
-        if ! validate_task_name "$task_name"; then
-            log_error "無効なタスク名: $task_name"
-            continue
-        fi
-
-        if ! validate_task_status "$status"; then
-            log_error "無効なステータス: $status"
-            continue
-        fi
-
-        # 新しいタスクIDの生成
-        local new_task_id=$(generate_task_id)
-
-        # タスクの追加
-        if add_task "$task_name" "$status" "null" "$details" "$concerns"; then
-            log_info "タスクを追加しました: $task_name (ID: $new_task_id)"
-            ((success_count++))
-        else
-            log_error "タスクの追加に失敗しました: $task_name"
-        fi
-    done
-
-    # テンプレートの再生成
-    if ((success_count > 0)); then
-        if generate_task_file_from_template; then
-            log_info "$success_count/$total_tasks 個のタスクが正常に追加されました"
-            return 0
-        else
-            log_error "タスクファイルの生成に失敗しました"
-            return 1
-        fi
-    else
-        log_error "タスクの追加に失敗しました"
-        return 1
-    fi
 }
 
 # メイン処理
-case "$1" in
-    "-h"|"--help")
+main() {
+    local names=""
+    local status="not_started"
+    local description=""
+    local concerns=""
+    local parent_id=""
+    
+    # オプションの解析
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                show_add_help
+                return 0
+                ;;
+            -n|--name)
+                names="$2"
+                shift 2
+                ;;
+            -s|--status)
+                status="$2"
+                shift 2
+                ;;
+            -d|--description)
+                description="$2"
+                shift 2
+                ;;
+            -c|--concerns)
+                concerns="$2"
+                shift 2
+                ;;
+            -p|--parent)
+                parent_id="$2"
+                shift 2
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                show_add_help
+                return 1
+                ;;
+        esac
+    done
+    
+    # 必須パラメータのチェック
+    if [[ -z "$names" ]]; then
+        log_error "Task name is required"
         show_add_help
-        ;;
-    *)
-        task_add "$@"
-        ;;
-esac 
+        return 1
+    fi
+    
+    # 親タスクの存在確認
+    if [[ -n "$parent_id" ]]; then
+        if ! task_exists "$parent_id"; then
+            log_error "Parent task not found: $parent_id"
+            return 1
+        fi
+    fi
+    
+    # コンマ区切りの名前を配列に分割
+    IFS=',' read -ra name_array <<< "$names"
+    
+    # 各タスクを追加
+    for name in "${name_array[@]}"; do
+        if ! add_task "$name" "$status" "$description" "$concerns" "$parent_id"; then
+            log_error "Failed to add task: $name"
+            continue
+        fi
+        log_info "Added task: $name"
+    done
+    
+    # テンプレートからタスクファイルを生成
+    if ! generate_task_file_from_template; then
+        log_error "Failed to generate task file from template"
+        return 1
+    fi
+    log_info "Template generated successfully"
+    
+    return 0
+}
+
+# スクリプトとして実行された場合
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi 

@@ -7,39 +7,45 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 # タスクIDの形式を検証
 validate_task_id() {
-    local task_id=$1
-    if [[ ! $task_id =~ ^[A-Z]{2}[0-9]{2}$ ]]; then
-        handle_error "Invalid task ID format: $task_id (expected format: AA00)"
+    local id="$1"
+    
+    # 形式チェック（PA01, PB01など）
+    if [[ ! "$id" =~ ^[A-Z]{2}[0-9]{2}$ ]]; then
+        return 1
     fi
+    
+    return 0
 }
 
 # タスク名の検証
 validate_task_name() {
-    local task_name=$1
-    if [ -z "$task_name" ]; then
-        handle_error "Task name cannot be empty"
+    local name="$1"
+    
+    # 空文字チェック
+    if [[ -z "$name" ]]; then
+        return 1
     fi
-    if [ ${#task_name} -gt 100 ]; then
-        handle_error "Task name is too long (max 100 characters)"
+    
+    # 長さチェック（1-100文字）
+    if [[ ${#name} -gt 100 ]]; then
+        return 1
     fi
+    
+    return 0
 }
 
 # タスクステータスの検証
 validate_task_status() {
-    local status=$1
+    local status="$1"
     local valid_statuses=("not_started" "in_progress" "completed")
-    local valid=false
     
     for valid_status in "${valid_statuses[@]}"; do
-        if [ "$status" = "$valid_status" ]; then
-            valid=true
-            break
+        if [[ "$status" == "$valid_status" ]]; then
+            return 0
         fi
     done
     
-    if [ "$valid" = false ]; then
-        handle_error "Invalid task status: $status (valid: ${valid_statuses[*]})"
-    fi
+    return 1
 }
 
 # 必須パラメータの検証
@@ -54,41 +60,43 @@ validate_required_param() {
 
 # ファイルパスの検証
 validate_file_path() {
-    local file_path=$1
-    local create_if_missing=${2:-false}
+    local path="$1"
     
-    if [ ! -e "$file_path" ]; then
-        if [ "$create_if_missing" = true ]; then
-            touch "$file_path" || handle_error "Failed to create file: $file_path"
-            log $LOG_LEVEL_INFO "Created file: $file_path"
-        else
-            handle_error "File not found: $file_path"
-        fi
+    # パスの存在チェック
+    if [[ ! -e "$path" ]]; then
+        return 1
     fi
+    
+    return 0
 }
 
 # ディレクトリパスの検証
-validate_directory() {
-    local dir_path=$1
-    local create_if_missing=${2:-false}
+validate_directory_path() {
+    local path="$1"
     
-    if [ ! -d "$dir_path" ]; then
-        if [ "$create_if_missing" = true ]; then
-            create_directory "$dir_path"
-        else
-            handle_error "Directory not found: $dir_path"
-        fi
+    # ディレクトリの存在チェック
+    if [[ ! -d "$path" ]]; then
+        return 1
     fi
+    
+    return 0
 }
 
-# YAMLファイルの構文検証
+# YAML構文の検証
 validate_yaml_syntax() {
-    local yaml_file=$1
-    check_dependency "yq"
+    local file="$1"
     
-    if ! yq eval '.' "$yaml_file" > /dev/null 2>&1; then
-        handle_error "Invalid YAML syntax in file: $yaml_file"
+    # ファイルの存在チェック
+    if [[ ! -f "$file" ]]; then
+        return 1
     fi
+    
+    # YAML構文チェック
+    if ! yq eval '.' "$file" > /dev/null 2>&1; then
+        return 1
+    fi
+    
+    return 0
 }
 
 # テンプレート名の検証
@@ -131,11 +139,68 @@ validate_number() {
 }
 
 # 日付形式の検証
-validate_date() {
-    local date=$1
-    local param_name=$2
+validate_date_format() {
+    local date="$1"
+    local format="${2:-%Y-%m-%d}"
     
-    if ! date -d "$date" > /dev/null 2>&1; then
-        handle_error "Invalid $param_name format: $date (expected format: YYYY-MM-DD)"
+    # 日付形式チェック
+    if ! date -j -f "$format" "$date" > /dev/null 2>&1; then
+        return 1
     fi
+    
+    return 0
+}
+
+# 優先度の検証
+validate_priority() {
+    local priority="$1"
+    
+    case "$priority" in
+        "high"|"medium"|"low")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# コマンドライン引数の検証
+validate_command_args() {
+    local command="$1"
+    shift
+    local args=("$@")
+    
+    case "$command" in
+        "add")
+            # addコマンドの引数検証
+            if [[ ${#args[@]} -lt 1 ]]; then
+                return 1
+            fi
+            ;;
+        "status")
+            # statusコマンドの引数検証
+            if [[ ${#args[@]} -lt 2 ]]; then
+                return 1
+            fi
+            if ! validate_task_id "${args[0]}"; then
+                return 1
+            fi
+            if ! validate_task_status "${args[1]}"; then
+                return 1
+            fi
+            ;;
+        "template")
+            # templateコマンドの引数検証
+            if [[ ${#args[@]} -lt 1 ]]; then
+                return 1
+            fi
+            ;;
+        *)
+            # 不明なコマンド
+            return 1
+            ;;
+    esac
+    
+    return 0
 } 

@@ -12,7 +12,7 @@ tasks:
     created_at: "2025-03-18"
     updated_at: "2025-03-18"
     description: "プロジェクト管理システムの開発を行う"
-    concerns: "開発スケジュールの管理が必要"
+    concerns: "スケジュール管理と進捗の可視化が重要"
   - id: "TA12"
     name: "データベース設計"
     status: "not_started"

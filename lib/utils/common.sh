@@ -9,13 +9,13 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# ログレベル
-LOG_LEVEL_DEBUG=0
-LOG_LEVEL_INFO=1
-LOG_LEVEL_WARN=2
-LOG_LEVEL_ERROR=3
+# ログレベルの定義
+LOG_LEVEL_ERROR=0
+LOG_LEVEL_WARN=1
+LOG_LEVEL_INFO=2
+LOG_LEVEL_DEBUG=3
 
-# デフォルトのログレベル
+# 現在のログレベル（デフォルトはINFO）
 CURRENT_LOG_LEVEL=$LOG_LEVEL_INFO
 
 # ログ出力関数
@@ -42,12 +42,44 @@ log() {
     fi
 }
 
-# エラーハンドリング関数
+# エラーメッセージを表示
+log_error() {
+    local message="$1"
+    if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_ERROR ]]; then
+        echo "エラー: $message" >&2
+    fi
+}
+
+# 警告メッセージを表示
+log_warn() {
+    local message="$1"
+    if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_WARN ]]; then
+        echo "警告: $message" >&2
+    fi
+}
+
+# 情報メッセージを表示
+log_info() {
+    local message="$1"
+    if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_INFO ]]; then
+        echo "情報: $message"
+    fi
+}
+
+# デバッグメッセージを表示
+log_debug() {
+    local message="$1"
+    if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_DEBUG ]]; then
+        echo "デバッグ: $message"
+    fi
+}
+
+# エラーハンドリング
 handle_error() {
-    local error_message=$1
-    local exit_code=${2:-1}
-    log $LOG_LEVEL_ERROR "$error_message"
-    exit $exit_code
+    local message="$1"
+    local exit_code="${2:-1}"
+    log_error "$message"
+    exit "$exit_code"
 }
 
 # 依存関係チェック
@@ -153,3 +185,131 @@ setup_environment() {
 
 # 初期化時に環境をセットアップ
 setup_environment 
+
+# ファイルの存在確認
+ensure_file_exists() {
+    local file="$1"
+    if [[ ! -f "$file" ]]; then
+        handle_error "ファイルが見つかりません: $file"
+    fi
+}
+
+# ディレクトリの存在確認
+ensure_directory_exists() {
+    local directory="$1"
+    if [[ ! -d "$directory" ]]; then
+        handle_error "ディレクトリが見つかりません: $directory"
+    fi
+}
+
+# コマンドの存在確認
+ensure_command_exists() {
+    local command="$1"
+    if ! command -v "$command" &> /dev/null; then
+        handle_error "必要なコマンドが見つかりません: $command"
+    fi
+}
+
+# バックアップの作成
+create_backup() {
+    local source="$1"
+    local backup="${source}.bak"
+    if ! cp "$source" "$backup"; then
+        handle_error "バックアップの作成に失敗しました: $source"
+    fi
+    log_info "バックアップを作成しました: $backup"
+}
+
+# タイムスタンプの生成
+generate_timestamp() {
+    date "+%Y%m%d_%H%M%S"
+}
+
+# 一時ファイルの作成
+create_temp_file() {
+    local prefix="${1:-temp}"
+    local temp_file
+    temp_file=$(mktemp "/tmp/${prefix}.XXXXXX")
+    echo "$temp_file"
+}
+
+# 一時ディレクトリの作成
+create_temp_directory() {
+    local prefix="${1:-temp}"
+    local temp_dir
+    temp_dir=$(mktemp -d "/tmp/${prefix}.XXXXXX")
+    echo "$temp_dir"
+}
+
+# クリーンアップ処理
+cleanup() {
+    local target="$1"
+    if [[ -e "$target" ]]; then
+        rm -rf "$target"
+    fi
+}
+
+# 文字列のトリム
+trim_string() {
+    local string="$1"
+    echo "$string" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+# 配列の結合
+join_array() {
+    local delimiter="$1"
+    shift
+    local array=("$@")
+    local result=""
+    
+    for ((i=0; i<${#array[@]}; i++)); do
+        if [[ $i -gt 0 ]]; then
+            result+="$delimiter"
+        fi
+        result+="${array[i]}"
+    done
+    
+    echo "$result"
+}
+
+# YAMLファイルの検証
+validate_yaml() {
+    local file="$1"
+    if ! yq eval '.' "$file" &> /dev/null; then
+        handle_error "無効なYAMLファイルです: $file"
+    fi
+}
+
+# 設定の読み込み
+load_config() {
+    local config_file="$1"
+    ensure_file_exists "$config_file"
+    validate_yaml "$config_file"
+    yq eval '.' "$config_file"
+}
+
+# 設定の更新
+update_config() {
+    local config_file="$1"
+    local key="$2"
+    local value="$3"
+    
+    ensure_file_exists "$config_file"
+    if ! yq eval ".$key = \"$value\"" -i "$config_file"; then
+        handle_error "設定の更新に失敗しました: $key"
+    fi
+}
+
+# ロック機能
+LOCK_FILE="/tmp/task_manager.lock"
+
+acquire_lock() {
+    if ! mkdir "$LOCK_FILE" 2>/dev/null; then
+        handle_error "別のプロセスが実行中です"
+    fi
+    trap 'rm -rf "$LOCK_FILE"' EXIT
+}
+
+release_lock() {
+    rm -rf "$LOCK_FILE"
+} 

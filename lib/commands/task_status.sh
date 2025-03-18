@@ -25,7 +25,6 @@ show_status_help() {
 
 オプション:
     -r, --recursive   サブタスクも含めて更新
-    -f, --force      確認なしで更新を実行
     -h, --help       このヘルプを表示
 
 例:
@@ -95,7 +94,6 @@ update_task_status() {
     local task_ids="$1"
     local new_statuses="$2"
     local recursive="$3"
-    local force="$4"
     
     # コンマ区切りの値を配列に分割
     IFS=',' read -ra id_array <<< "$task_ids"
@@ -122,28 +120,17 @@ update_task_status() {
             continue
         fi
         
-        # 確認プロンプト（--force オプションが指定されていない場合）
-        if [[ "$force" != "true" ]]; then
-            local current_status
-            current_status=$(get_task "$task_id" | yq eval '.status' -)
-            read -p "タスク $task_id のステータスを $current_status から $new_status に変更しますか？ (y/N): " confirm
-            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-                log_info "タスク $task_id のステータス変更をスキップしました"
-                continue
-            fi
-        fi
-        
         # ステータスの更新
         if [[ "$recursive" == "true" ]]; then
             update_status_recursive "$task_id" "$new_status"
         else
-            update_task "$task_id" "status" "$new_status"
+            if ! update_task "$task_id" "status" "$new_status"; then
+                log_error "タスクの更新に失敗しました: $task_id"
+                continue
+            fi
         fi
         
-        if [[ $? -eq 0 ]]; then
-            updated_tasks+=("$task_id")
-        fi
-        
+        updated_tasks+=("$task_id")
         ((i++))
     done
     
@@ -164,7 +151,6 @@ main() {
     local task_ids=""
     local new_statuses=""
     local recursive="false"
-    local force="false"
     
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -174,10 +160,6 @@ main() {
                 ;;
             -r|--recursive)
                 recursive="true"
-                shift
-                ;;
-            -f|--force)
-                force="true"
                 shift
                 ;;
             *)
@@ -203,7 +185,7 @@ main() {
     fi
     
     # ステータスを更新
-    update_task_status "$task_ids" "$new_statuses" "$recursive" "$force"
+    update_task_status "$task_ids" "$new_statuses" "$recursive"
     return $?
 }
 

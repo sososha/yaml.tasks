@@ -5,6 +5,10 @@
 # スクリプトが存在するディレクトリの絶対パスを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# タスク管理システムのルートディレクトリを設定
+TASK_DIR="$SCRIPT_DIR"
+export TASK_DIR
+
 # 共通の設定と関数をインポート
 source "${SCRIPT_DIR}/lib/utils/common.sh"
 source "${SCRIPT_DIR}/lib/utils/validators.sh"
@@ -24,12 +28,15 @@ Commands:
     start       Initialize the task management system
     init        Re-initialize the system (preserves existing data)
     add         Add new task(s)
+    delete      Delete task(s)
     subtask     Add subtask(s) to an existing task
     status      Change task status
     list        List all tasks
     template    Manage task templates
     sync        Synchronize task data and display
     sort        Sort tasks
+    validate    Validate task data integrity
+    edit        Edit an existing task
     help        Show this help message
 
 Options:
@@ -48,52 +55,64 @@ show_version() {
 
 # コマンドの実行
 execute_command() {
-    local command=$1
-    shift # コマンドを削除して残りの引数を保持
-
-    case $command in
-        start)
-            source "${SCRIPT_DIR}/lib/commands/task_init.sh"
-            task_start "$@"
+    local command="$1"
+    shift
+    
+    case "$command" in
+        "start")
+            source "${SCRIPT_DIR}/lib/commands/task_start.sh"
+            main "$@"
             ;;
-        init)
+        "init")
             source "${SCRIPT_DIR}/lib/commands/task_init.sh"
-            task_init "$@"
+            main "$@"
             ;;
-        add)
+        "add")
             source "${SCRIPT_DIR}/lib/commands/task_add.sh"
-            task_add "$@"
+            main "$@"
             ;;
-        subtask)
+        "delete")
+            source "${SCRIPT_DIR}/lib/commands/task_delete.sh"
+            main "$@"
+            ;;
+        "subtask")
             source "${SCRIPT_DIR}/lib/commands/task_subtask.sh"
-            task_subtask "$@"
+            main "$@"
             ;;
-        status)
+        "status")
             source "${SCRIPT_DIR}/lib/commands/task_status.sh"
-            task_status "$@"
+            main "$@"
             ;;
-        list)
+        "list")
             source "${SCRIPT_DIR}/lib/commands/task_list.sh"
-            task_list "$@"
+            main "$@"
             ;;
-        template)
+        "template")
             source "${SCRIPT_DIR}/lib/commands/task_template.sh"
-            task_template "$@"
+            main "$@"
             ;;
-        sync)
+        "sync")
             source "${SCRIPT_DIR}/lib/commands/task_sync.sh"
-            task_sync "$@"
+            main "$@"
             ;;
-        sort)
+        "sort")
             source "${SCRIPT_DIR}/lib/commands/task_sort.sh"
-            task_sort "$@"
+            main "$@"
             ;;
-        help)
-            if [ $# -eq 0 ]; then
+        "validate")
+            source "${SCRIPT_DIR}/lib/commands/task_validate.sh"
+            main "$@"
+            ;;
+        "edit")
+            source "${SCRIPT_DIR}/lib/commands/task_edit.sh"
+            main "$@"
+            ;;
+        "help")
+            if [[ $# -eq 0 ]]; then
                 show_help
             else
-                # 各コマンドのヘルプを表示（未実装）
-                echo "Detailed help for $1 command is not implemented yet."
+                source "${SCRIPT_DIR}/lib/commands/task_help.sh"
+                main "$@"
             fi
             ;;
         *)
