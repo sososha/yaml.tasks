@@ -101,6 +101,11 @@ create_symlink() {
         mkdir -p "$user_bin_dir"
     fi
     
+    # libディレクトリのシンボリックリンクを作成
+    if [[ ! -d "${user_bin_dir}/lib" ]]; then
+        ln -sf "${SCRIPT_DIR}/lib" "${user_bin_dir}/lib"
+    fi
+    
     # PATHに追加されているか確認
     if [[ ":$PATH:" != *":$user_bin_dir:"* ]]; then
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.bashrc"
