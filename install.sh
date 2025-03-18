@@ -3,35 +3,33 @@
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 色付きの出力用関数
-print_info() {
-    echo -e "\033[0;34m[INFO]\033[0m $1"
-}
+# カラー出力の設定
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-print_error() {
-    echo -e "\033[0;31m[ERROR]\033[0m $1"
-}
-
-print_success() {
-    echo -e "\033[0;32m[SUCCESS]\033[0m $1"
-}
+# ログ出力関数
+print_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # システム要件のチェック
 check_requirements() {
     print_info "システム要件をチェックしています..."
     
-    # bashのバージョンチェック
-    if [[ "${BASH_VERSION%%.*}" -lt 4 ]]; then
+    # Bashバージョンのチェック
+    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
         print_error "Bash 4.0以上が必要です"
         return 1
     fi
     
-    # Homebrewのチェック（macOS用）
-    if [[ "$(uname)" == "Darwin" ]] && ! command -v brew &> /dev/null; then
-        print_error "Homebrewがインストールされていません"
-        echo "以下のコマンドでHomebrewをインストールしてください："
-        echo '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-        return 1
+    # macOSの場合はHomebrewのチェック
+    if [[ "$(uname)" == "Darwin" ]]; then
+        if ! command -v brew &> /dev/null; then
+            print_error "Homebrewがインストールされていません"
+            return 1
+        fi
     fi
     
     return 0
@@ -47,25 +45,13 @@ install_dependencies() {
             brew install yq
         elif [[ "$(uname)" == "Linux" ]]; then
             if command -v apt-get &> /dev/null; then
-                sudo apt-get update
-                sudo apt-get install -y wget
-                YQ_VERSION="v4.40.5"
-                YQ_BINARY="yq_linux_amd64"
-                wget "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz" -O - |\
-                tar xz && sudo mv ${YQ_BINARY} /usr/local/bin/yq
+                sudo apt-get update && sudo apt-get install -y yq
             elif command -v yum &> /dev/null; then
-                sudo yum install -y wget
-                YQ_VERSION="v4.40.5"
-                YQ_BINARY="yq_linux_amd64"
-                wget "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}.tar.gz" -O - |\
-                tar xz && sudo mv ${YQ_BINARY} /usr/local/bin/yq
+                sudo yum install -y yq
             else
-                print_error "対応していないLinuxディストリビューションです"
+                print_error "パッケージマネージャーが見つかりません"
                 return 1
             fi
-        else
-            print_error "対応していないOSです"
-            return 1
         fi
     fi
     
@@ -73,25 +59,28 @@ install_dependencies() {
     return 0
 }
 
-# 必要なディレクトリの作成
+# インストールディレクトリの設定
+INSTALL_DIR="${HOME}/.task"
+BIN_DIR="${HOME}/.local/bin"
+
+# 必要なディレクトリの作成とファイルのコピー
 create_directories() {
     print_info "必要なディレクトリを作成しています..."
     
-    # ユーザーのbinディレクトリを確認/作成
-    local user_bin_dir="${HOME}/.local/bin"
-    if [[ ! -d "$user_bin_dir" ]]; then
-        mkdir -p "$user_bin_dir"
-    fi
+    # インストールディレクトリの作成
+    mkdir -p "${INSTALL_DIR}"/{lib,config,tasks/{backups,templates}}
     
-    # libディレクトリのコピー
-    if [[ ! -d "${user_bin_dir}/lib" ]]; then
-        cp -r "${SCRIPT_DIR}/lib" "${user_bin_dir}/lib"
-    fi
+    # ライブラリのコピー
+    cp -r "${SCRIPT_DIR}/lib" "${INSTALL_DIR}/"
     
     # 設定ファイルのコピー
-    if [[ ! -f "${user_bin_dir}/config/template_config.yaml" ]]; then
-        mkdir -p "${user_bin_dir}/config"
-        cp "${SCRIPT_DIR}/config/template_config.yaml.example" "${user_bin_dir}/config/template_config.yaml"
+    if [[ ! -f "${INSTALL_DIR}/config/template_config.yaml" ]]; then
+        cp "${SCRIPT_DIR}/config/template_config.yaml.example" "${INSTALL_DIR}/config/template_config.yaml"
+    fi
+    
+    # タスクファイルの作成
+    if [[ ! -f "${INSTALL_DIR}/tasks/tasks.yaml" ]]; then
+        echo "tasks: []" > "${INSTALL_DIR}/tasks/tasks.yaml"
     fi
     
     print_success "ディレクトリの作成が完了しました"
@@ -102,26 +91,167 @@ create_directories() {
 create_symlink() {
     print_info "コマンドのシンボリックリンクを作成しています..."
     
-    # ユーザーのbinディレクトリを確認/作成
-    local user_bin_dir="${HOME}/.local/bin"
-    if [[ ! -d "$user_bin_dir" ]]; then
-        mkdir -p "$user_bin_dir"
-    fi
+    # binディレクトリの作成
+    mkdir -p "${BIN_DIR}"
     
-    # libディレクトリのシンボリックリンクを作成
-    if [[ ! -d "${user_bin_dir}/lib" ]]; then
-        ln -sf "${SCRIPT_DIR}/lib" "${user_bin_dir}/lib"
-    fi
+    # taskコマンドの作成
+    cat > "${BIN_DIR}/task" << 'EOF'
+#!/bin/bash
+
+# インストールディレクトリの設定
+INSTALL_DIR="${HOME}/.task"
+TASK_DIR="$(pwd)"
+
+# 共通ユーティリティの読み込み
+source "${INSTALL_DIR}/lib/utils/common.sh"
+source "${INSTALL_DIR}/lib/utils/validators.sh"
+
+# バージョン情報
+VERSION="0.1.0"
+
+# ヘルプメッセージの表示
+show_help() {
+    cat << HELP
+Task Management System v${VERSION}
+
+Usage:
+    task <command> [options] [arguments]
+
+Commands:
+    start       Initialize the task management system
+    init        Re-initialize the system (preserves existing data)
+    add         Add new task(s)
+    delete      Delete task(s)
+    subtask     Add subtask(s) to an existing task
+    status      Change task status
+    list        List all tasks
+    template    Manage task templates
+    sync        Synchronize task data and display
+    sort        Sort tasks
+    validate    Validate task data integrity
+    edit        Edit an existing task
+    help        Show this help message
+
+Options:
+    -h, --help     Show this help message
+    -v, --version  Show version information
+
+For more information about a command:
+    task help <command>
+HELP
+}
+
+# バージョン情報の表示
+show_version() {
+    echo "Task Management System v${VERSION}"
+}
+
+# コマンドの実行
+execute_command() {
+    local command="$1"
+    shift
     
-    # PATHに追加されているか確認
-    if [[ ":$PATH:" != *":$user_bin_dir:"* ]]; then
+    case "$command" in
+        "start")
+            source "${INSTALL_DIR}/lib/commands/task_start.sh"
+            main "$@"
+            ;;
+        "init")
+            source "${INSTALL_DIR}/lib/commands/task_init.sh"
+            main "$@"
+            ;;
+        "add")
+            source "${INSTALL_DIR}/lib/commands/task_add.sh"
+            main "$@"
+            ;;
+        "delete")
+            source "${INSTALL_DIR}/lib/commands/task_delete.sh"
+            main "$@"
+            ;;
+        "subtask")
+            source "${INSTALL_DIR}/lib/commands/task_subtask.sh"
+            main "$@"
+            ;;
+        "status")
+            source "${INSTALL_DIR}/lib/commands/task_status.sh"
+            main "$@"
+            ;;
+        "list")
+            source "${INSTALL_DIR}/lib/commands/task_list.sh"
+            main "$@"
+            ;;
+        "template")
+            source "${INSTALL_DIR}/lib/commands/task_template.sh"
+            main "$@"
+            ;;
+        "sync")
+            source "${INSTALL_DIR}/lib/commands/task_sync.sh"
+            main "$@"
+            ;;
+        "sort")
+            source "${INSTALL_DIR}/lib/commands/task_sort.sh"
+            main "$@"
+            ;;
+        "validate")
+            source "${INSTALL_DIR}/lib/commands/task_validate.sh"
+            main "$@"
+            ;;
+        "edit")
+            source "${INSTALL_DIR}/lib/commands/task_edit.sh"
+            main "$@"
+            ;;
+        "help")
+            if [[ $# -eq 0 ]]; then
+                show_help
+            else
+                source "${INSTALL_DIR}/lib/commands/task_help.sh"
+                main "$@"
+            fi
+            ;;
+        *)
+            echo "Error: Unknown command '$command'"
+            echo "Run 'task help' for usage information"
+            exit 1
+            ;;
+    esac
+}
+
+# メイン処理
+main() {
+    # 引数がない場合はヘルプを表示
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    # オプションの処理
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -v|--version)
+            show_version
+            exit 0
+            ;;
+        *)
+            execute_command "$@"
+            ;;
+    esac
+}
+
+# スクリプトの実行
+main "$@"
+EOF
+    
+    # 実行権限の付与
+    chmod +x "${BIN_DIR}/task"
+    
+    # PATHの設定
+    if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.bashrc"
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.zshrc"
     fi
-    
-    # シンボリックリンクの作成
-    ln -sf "${SCRIPT_DIR}/task.sh" "${user_bin_dir}/task"
-    chmod +x "${SCRIPT_DIR}/task.sh"
     
     print_success "シンボリックリンクの作成が完了しました"
     return 0
@@ -132,28 +262,16 @@ main() {
     print_info "タスク管理システムのインストールを開始します..."
     
     # システム要件のチェック
-    if ! check_requirements; then
-        print_error "システム要件を満たしていません"
-        return 1
-    fi
+    check_requirements || exit 1
     
     # 依存関係のインストール
-    if ! install_dependencies; then
-        print_error "依存関係のインストールに失敗しました"
-        return 1
-    fi
+    install_dependencies || exit 1
     
-    # ディレクトリの作成
-    if ! create_directories; then
-        print_error "ディレクトリの作成に失敗しました"
-        return 1
-    fi
+    # 必要なディレクトリの作成とファイルのコピー
+    create_directories || exit 1
     
     # シンボリックリンクの作成
-    if ! create_symlink; then
-        print_error "シンボリックリンクの作成に失敗しました"
-        return 1
-    fi
+    create_symlink || exit 1
     
     print_success "インストールが完了しました"
     print_info "シェルを再起動するか、以下のコマンドを実行してください："
@@ -163,4 +281,4 @@ main() {
 }
 
 # スクリプトの実行
-main "$@" 
+main 
