@@ -248,14 +248,8 @@ sort_tasks() {
     
     # ソート処理
     case "$sort_field" in
-        "name")
-            yq eval '.tasks |= sort_by(."'"$sort_field"'")' -i "$TASKS_YAML_FILE"
-            ;;
-        "status")
-            yq eval '.tasks |= sort_by(."'"$sort_field"'")' -i "$TASKS_YAML_FILE"
-            ;;
-        "id")
-            yq eval '.tasks |= sort_by(."'"$sort_field"'")' -i "$TASKS_YAML_FILE"
+        "name"|"status"|"id")
+            yq eval ".tasks |= sort_by(.$sort_field)" -i "$TASKS_YAML_FILE"
             ;;
         *)
             log_error "不明なソートフィールド: $sort_field"
