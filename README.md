@@ -1,261 +1,236 @@
-# Task.sh
+# YAMLベースのタスク管理システム 🗂️
 
-シンプルで階層的なYAMLベースのタスク管理ツール
+シンプルで使いやすいYAMLベースのタスク管理システムです。コマンドラインから簡単にタスクを追加、編集、削除できます。階層的なタスク管理が可能で、視覚的にわかりやすい出力を提供します。
 
-## 特徴
+## 特徴 ✨
 
-- YAMLベースのシンプルなタスク管理
-- 4階層までの詳細な階層的タスク構造
-- 直感的なコマンドラインインターフェース
-- マークダウンフォーマットでのタスク表示
-- ✅ 完了タスクの視覚的表示
-- 自動バックアップ機能
-- テンプレートベースのカスタマイズ可能な表示
-- カスタムプレフィックスによるタスク分類（PA, BUG, FEATなど）
-- コマンド一つで簡単アップデート
+- シンプルなコマンドラインインターフェース
+- YAMLベースのデータストレージ
+- 階層的なタスク管理（親タスク・サブタスク）
+- カスタマイズ可能なテンプレート
+- 完了タスクのチェックマーク表示 (✅)
+- 詳細なタスク記述（説明・懸念点など）
+- 複数タスクの一括追加機能
+- カスタムタスクID対応
+- 柔軟なタスクステータス管理
+- データ検証と同期機能
 
-## インストール
+## インストール方法 🚀
 
-### GitHubからのインストール
+GitHubからリポジトリをクローンし、インストールスクリプトを実行します。
 
 ```bash
-git clone https://github.com/username/task.sh.git
-cd task.sh/yaml.tasks
+git clone https://github.com/your-username/yaml.tasks.git
+cd yaml.tasks
 ./install.sh
 ```
 
-### 直接インストール
+インストールスクリプトは、必要なファイルを `~/.local/bin/` ディレクトリにコピーします。インストール後、`task` コマンドをどこからでも実行できるようになります。
+
+## 使い方 📝
+
+### システム初期化
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/username/task.sh/main/yaml.tasks/install.sh | bash
-```
-
-## 使い方
-
-1. プロジェクトディレクトリで初期化：
-```bash
-cd your-project
+# 新しいプロジェクトディレクトリでタスク管理システムを初期化
 task start
+
+# 既存システムの再初期化（タスクデータは保持）
+task init
+
+# 強制的に再初期化
+task init --force
 ```
 
-2. タスクの追加：
-```bash
-task add -n "タスク名" -d "説明" -c "懸念事項"
-```
-
-3. タスク一覧の表示：
-```bash
-task list
-```
-
-4. ヘルプの表示：
-```bash
-task --help
-```
-
-## コマンド一覧
-
-- `task start` : タスク管理を開始（初期化）
-- `task add` : タスクを追加
-- `task list` : タスク一覧を表示
-- `task edit` : タスクを編集
-- `task delete` : タスクを削除
-- `task subtask` : サブタスクを追加
-- `task status` : タスクのステータスを変更
-- `task template` : タスク表示テンプレートを管理
-- `task update` : タスク管理システムを最新版に更新
-- `task uninstall` : タスク管理システムをアンインストール
-
-## 階層的なタスク管理
-
-Task.shでは、4階層までの詳細なタスク階層を管理できます：
-
-```
-## TA01 [in_progress] プロジェクト管理
-説明: プロジェクト全体の管理
-懸念事項: スケジュール管理が重要
-
-  ## TA04 [in_progress] スケジュール管理
-
-    ## TA13 ✅ 週次計画
-    説明: 毎週の進捗確認
-    懸念事項: 遅延の早期検出
-
-      ## TA22 ✅ 担当者割当
-      説明: 担当者の決定
-```
-
-親子関係のあるタスクはインデントで表現され、視覚的に把握しやすくなっています。
-
-## タスクのステータス
-
-タスクには以下の3つのステータスがあります：
-
-- `not_started` : 未着手（デフォルト）
-- `in_progress` : 進行中
-- `completed` : 完了（✅で表示）
-
-## 使用方法
-
-### タスクの作成
+### タスクの追加
 
 ```bash
-task add -n "タスク名" -d "説明" -c "懸念事項"
+# 単一タスクの追加
+task add -n "タスク名"
+
+# 詳細情報付きでタスクを追加
+task add -n "タスク名" -d "詳細説明" -c "懸念点"
+
+# サブタスクの追加 (親タスクIDを指定)
+task add -n "サブタスク名" -p TA01
+
+# 複数タスクを一度に追加
+task add -n "タスク1,タスク2,タスク3"
+
+# 複数サブタスクを一度に追加
+task add -n "サブタスク1,サブタスク2" -p TA01
+
+# カスタムプレフィックスでタスクを追加
+task add -n "特別タスク" --prefix "SP"
+
+# 特定の番号から開始する連番タスク
+task add -n "連番タスク" --start-num 100
 ```
 
-オプション:
-- `-n, --name`: タスク名（必須）
-- `-d, --description`: タスクの説明
-- `-c, --concerns`: 懸念事項
-- `-p, --parent`: 親タスクのID
-- `--prefix`: タスクIDのプレフィックス（TA, PA, BUG など、デフォルト: TA）
-- `--start-num`: タスクID番号の開始値
-
-### カスタムプレフィックスの使用
-
-タスクの種類に応じて異なるプレフィックスを使用できます：
+### サブタスクの専用コマンド
 
 ```bash
-# プロジェクトAのタスク
-task add -n "仕様策定" --prefix "PA"  # 例: PA01
+# サブタスクの追加（親タスクIDを指定）
+task subtask -p TA01 -n "サブタスク名"
 
-# バグ修正タスク
-task add -n "表示崩れの修正" --prefix "BUG"  # 例: BUG02
+# 複数のサブタスクを追加
+task subtask -p TA01 -n "サブタスク1,サブタスク2,サブタスク3"
 
-# 新機能開発
-task add -n "認証機能追加" --prefix "FEAT"  # 例: FEAT03
-```
-
-タスクIDは全体で連続した番号が付与されるため、プレフィックスが変わっても新しいタスクには必ず次の番号が使われます。
-
-### サブタスクの追加
-
-```bash
-task subtask -p "親タスクID" -n "サブタスク名" -d "説明"
-```
-
-または
-
-```bash
-task add -p "親タスクID" -n "サブタスク名"
-```
-
-### 複数タスクの一括追加
-
-```bash
-task add -n "タスク1,タスク2,タスク3" -p "親タスクID"
-```
-
-### タスクの編集
-
-```bash
-task edit -i "タスクID" -n "新しいタスク名" -d "新しい説明" -c "新しい懸念事項"
-```
-
-オプション:
-- `-i, --id`: 編集するタスクのID（必須）
-- `-n, --name`: 新しいタスク名
-- `-d, --description`: 新しい説明
-- `-c, --concerns`: 新しい懸念事項
-- `-p, --parent`: 新しい親タスクのID
-
-### タスクの削除
-
-```bash
-task delete -i "タスクID"
+# 詳細情報付きでサブタスクを追加
+task subtask -p TA01 -n "サブタスク名" -d "詳細説明" -c "懸念点"
 ```
 
 ### タスクの一覧表示
 
 ```bash
+# すべてのタスクを表示
 task list
+
+# 完了済みタスクのみ表示
+task list --completed
+
+# 未完了タスクのみ表示
+task list --not-completed
 ```
 
-オプション:
-- `-a, --all`: すべてのタスクを表示（デフォルト）
-- `-c, --completed`: 完了したタスクのみ表示
-- `-i, --in-progress`: 進行中のタスクのみ表示
-- `-n, --not-started`: 未着手のタスクのみ表示
+### タスクの詳細表示
+
+```bash
+# タスクIDを指定して詳細表示
+task show -i TA01
+```
+
+### タスクの編集
+
+```bash
+# タスク名を編集
+task edit -i TA01 -n "新しいタスク名"
+
+# タスクの説明を編集
+task edit -i TA01 -d "新しい説明"
+
+# タスクの懸念点を編集
+task edit -i TA01 -c "新しい懸念点"
+
+# タスクの状態を変更（完了/未完了）
+task edit -i TA01 -s completed  # または not_completed
+```
+
+### タスクのステータス管理
+
+```bash
+# タスクのステータスを変更
+task status -i TA01 -s completed
+
+# 複数タスクのステータスを一括変更
+task status -i "TA01,TA02,TA03" -s in_progress
+
+# ステータス一覧の表示
+task status --list
+```
+
+### タスクの削除
+
+```bash
+# タスクIDを指定して削除
+task delete -i TA01
+
+# 複数タスクを一括削除
+task delete -i "TA01,TA02"
+```
+
+### データの検証と同期
+
+```bash
+# タスクデータの検証
+task validate
+
+# タスクデータの同期
+task sync
+
+# 特定のディレクトリへの同期
+task sync --dir /path/to/backup
+```
 
 ### テンプレートの管理
 
 ```bash
-task template --list          # 利用可能なテンプレート一覧
-task template --show          # 現在のテンプレートを表示
-task template --use minimal   # 指定したテンプレートを使用
-task template --create custom # 新しいテンプレートを作成
+# 現在のテンプレートを表示
+task template --show
+
+# 利用可能なテンプレート一覧を表示
+task template --list
+
+# テンプレートを使用
+task template --use <テンプレート名>
+
+# 新しいテンプレートを作成
+task template --create <テンプレート名>
 ```
 
-### システムの更新
+### システム管理
 
 ```bash
-task update                  # 最新版に更新
-task update --force          # 確認なしで更新
-task update --repo <URL>     # 特定のリポジトリから更新
+# タスク管理システムを最新版に更新
+task update
+
+# 強制的に更新
+task update --force
+
+# 特定のリポジトリから更新
+task update --repo <URL>
 ```
 
 ### システムのアンインストール
 
 ```bash
-task uninstall                  # タスク管理システムをアンインストール
-task uninstall --keep-data        # データを保持してアンインストール
-task uninstall --force            # 確認なしで強制的にアンインストール
+# タスク管理システムをアンインストール
+task uninstall
+
+# データを保持してアンインストール
+task uninstall --keep-data
+
+# 確認なしで強制的にアンインストール
+task uninstall --force
 ```
 
-## プロジェクト設定
+## ディレクトリ構造 📂
 
-プロジェクトの設定は `tasks/config/project_config.yaml` で管理されます：
-
-```yaml
-# タスク管理の設定
-prefix: "TA"  # デフォルトのタスクIDプレフィックス
-auto_numbering: true  # 自動採番を行うかどうか
-start_number: 1  # 自動採番の開始番号
+```
+~/.local/bin/
+├── task                # メインの実行ファイル
+├── lib/                # ライブラリファイル
+│   ├── commands/       # コマンド実装
+│   ├── core/           # コア機能
+│   └── utils/          # ユーティリティ関数
+└── tasks/              # タスクデータ
+    ├── templates/      # 出力テンプレート
+    ├── backups/        # バックアップファイル
+    └── config/         # 設定ファイル
 ```
 
-## ディレクトリ構造
-
-タスク管理を開始すると、以下のディレクトリ構造が作成されます：
+プロジェクトディレクトリで `task start` を実行すると、以下のような構造が作成されます：
 
 ```
 your-project/
 └── tasks/
-    ├── tasks.yaml        # タスクデータ（YAML形式）
-    ├── project.tasks     # タスク一覧表示（マークダウン形式）
-    ├── backups/          # バックアップファイル
-    ├── config/           # 設定ファイル
-    │   └── project_config.yaml  # プロジェクト設定
-    └── templates/        # 表示テンプレート
+    ├── templates/      # 出力テンプレート
+    ├── backups/        # バックアップファイル
+    ├── config/         # 設定ファイル
+    ├── tasks.yaml      # タスクデータ
+    └── project.tasks   # フォーマットされたタスク出力
 ```
 
-## システム要件
+## 必要なシステム要件 🔧
 
 - bash 4.0以上
-- yq (YAML処理用)
-- git (バージョン管理用、および更新機能)
+- yq コマンド（YAML処理用）
+- Linux または macOS
 
-## バックアップと安全性
+## エラー処理 🚨
 
-- タスクの編集・削除時に自動的にバックアップが作成されます
-- バックアップは `tasks/backups/` ディレクトリに保存され、日時が付与されます
-- 誤って削除してもバックアップから復元できます
+タスク管理システムは、一般的なエラー（存在しないタスクIDの指定、不正なオプションの使用など）を検出して適切なエラーメッセージを表示します。
 
-## 開発者向け情報
+## ライセンス 📄
 
-### モジュール構成
-
-- `commands/`: 各コマンドの実装
-- `core/`: コアロジック（YAML処理、テンプレートエンジン）
-- `utils/`: ユーティリティ関数と検証機能
-
-### デバッグモード
-
-環境変数 `DEBUG=1` を設定することで、詳細なログが出力されます：
-
-```bash
-DEBUG=1 task [command]
-```
-
-## ライセンス
-
-MIT License 
+このプロジェクトはMITライセンスの下で公開されています。詳細はLICENSEファイルを参照してください。 

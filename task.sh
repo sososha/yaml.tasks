@@ -36,14 +36,19 @@ fi
 
 # サブコマンドの読み込み
 COMMANDS=(
-    "commands/task_add.sh"
-    "commands/task_list.sh"
-    "commands/task_show.sh"
-    "commands/task_edit.sh"
-    "commands/task_delete.sh"
-    "commands/task_template.sh"
-    "commands/task_update.sh"
-    "commands/task_uninstall.sh"
+    "commands/task_init.sh"      # start, initコマンド
+    "commands/task_add.sh"       # addコマンド
+    "commands/task_list.sh"      # listコマンド
+    "commands/task_show.sh"      # showコマンド
+    "commands/task_edit.sh"      # editコマンド
+    "commands/task_delete.sh"    # deleteコマンド
+    "commands/task_template.sh"  # templateコマンド
+    "commands/task_subtask.sh"   # subtaskコマンド
+    "commands/task_status.sh"    # statusコマンド
+    "commands/task_sync.sh"      # syncコマンド
+    "commands/task_validate.sh"  # validateコマンド
+    "commands/task_update.sh"    # updateコマンド
+    "commands/task_uninstall.sh" # uninstallコマンド
 )
 
 for cmd in "${COMMANDS[@]}"; do
@@ -63,11 +68,17 @@ show_help() {
 タスク管理システム
 
 コマンド:
+  start     タスク管理システムの初期化
+  init      システムの再初期化（データは保持）
   add       タスクの追加
   list      タスクの一覧表示
   show      タスクの詳細表示
   edit      タスクの編集
   delete    タスクの削除
+  subtask   サブタスクの追加
+  status    タスクのステータス変更
+  sync      タスクデータの同期
+  validate  タスクデータの検証
   template  テンプレートの管理
   update    タスク管理システムの更新
   uninstall タスク管理システムのアンインストール
@@ -97,6 +108,26 @@ main() {
     shift
 
     case "$command" in
+        start)
+            # task_init.shのtask_start関数を呼び出す
+            INIT_PATH=$(find_module_path "commands/task_init.sh")
+            if [[ -n "$INIT_PATH" ]]; then
+                task_start "$@"
+            else
+                log_error "初期化機能が見つかりません"
+                return 1
+            fi
+            ;;
+        init)
+            # task_init.shのtask_init関数を呼び出す
+            INIT_PATH=$(find_module_path "commands/task_init.sh")
+            if [[ -n "$INIT_PATH" ]]; then
+                task_init "$@"
+            else
+                log_error "再初期化機能が見つかりません"
+                return 1
+            fi
+            ;;
         add)
             # タスク追加コマンドの処理
             local task_name=""
@@ -171,6 +202,46 @@ main() {
         delete)
             # task_delete.shのmain関数を呼び出す
             main "$@"
+            ;;
+        subtask)
+            # task_subtask.shのmain関数を呼び出す
+            SUBTASK_PATH=$(find_module_path "commands/task_subtask.sh")
+            if [[ -n "$SUBTASK_PATH" ]]; then
+                task_subtask "$@"
+            else
+                log_error "サブタスク機能が見つかりません"
+                return 1
+            fi
+            ;;
+        status)
+            # task_status.shのmain関数を呼び出す
+            STATUS_PATH=$(find_module_path "commands/task_status.sh")
+            if [[ -n "$STATUS_PATH" ]]; then
+                task_status "$@"
+            else
+                log_error "ステータス変更機能が見つかりません"
+                return 1
+            fi
+            ;;
+        sync)
+            # task_sync.shのmain関数を呼び出す
+            SYNC_PATH=$(find_module_path "commands/task_sync.sh")
+            if [[ -n "$SYNC_PATH" ]]; then
+                task_sync "$@"
+            else
+                log_error "同期機能が見つかりません"
+                return 1
+            fi
+            ;;
+        validate)
+            # task_validate.shのmain関数を呼び出す
+            VALIDATE_PATH=$(find_module_path "commands/task_validate.sh")
+            if [[ -n "$VALIDATE_PATH" ]]; then
+                task_validate "$@"
+            else
+                log_error "検証機能が見つかりません"
+                return 1
+            fi
             ;;
         template)
             # task_template.shのmain関数を呼び出す
