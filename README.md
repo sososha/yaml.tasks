@@ -64,6 +64,7 @@ task --help
 - `task status` : タスクのステータスを変更
 - `task template` : タスク表示テンプレートを管理
 - `task update` : タスク管理システムを最新版に更新
+- `task uninstall` : タスク管理システムをアンインストール
 
 ## 階層的なタスク管理
 
@@ -191,6 +192,14 @@ task template --create custom # 新しいテンプレートを作成
 task update                  # 最新版に更新
 task update --force          # 確認なしで更新
 task update --repo <URL>     # 特定のリポジトリから更新
+```
+
+### システムのアンインストール
+
+```bash
+task uninstall                  # タスク管理システムをアンインストール
+task uninstall --keep-data        # データを保持してアンインストール
+task uninstall --force            # 確認なしで強制的にアンインストール
 ```
 
 ## プロジェクト設定

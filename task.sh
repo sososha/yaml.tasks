@@ -43,6 +43,7 @@ COMMANDS=(
     "commands/task_delete.sh"
     "commands/task_template.sh"
     "commands/task_update.sh"
+    "commands/task_uninstall.sh"
 )
 
 for cmd in "${COMMANDS[@]}"; do
@@ -69,6 +70,7 @@ show_help() {
   delete    タスクの削除
   template  テンプレートの管理
   update    タスク管理システムの更新
+  uninstall タスク管理システムのアンインストール
 
 オプション:
   -h, --help   ヘルプの表示
@@ -182,6 +184,17 @@ main() {
                 main "$@"
             else
                 log_error "更新機能が見つかりません"
+                return 1
+            fi
+            ;;
+        uninstall)
+            # task_uninstall.shのmain関数を呼び出す
+            UNINSTALL_PATH=$(find_module_path "commands/task_uninstall.sh")
+            if [[ -n "$UNINSTALL_PATH" ]]; then
+                source "$UNINSTALL_PATH"
+                main "$@"
+            else
+                log_error "アンインストール機能が見つかりません"
                 return 1
             fi
             ;;
