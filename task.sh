@@ -5,7 +5,7 @@
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 TASK_DIR="$(pwd)"
-LIB_DIR="/Users/sososha/Documents/task.sh/yaml.tasks/lib"
+LIB_DIR="${SCRIPT_DIR}/lib"
 
 # 共通ユーティリティの読み込み
 source "${LIB_DIR}/utils/common.sh"

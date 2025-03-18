@@ -77,14 +77,21 @@ install_dependencies() {
 create_directories() {
     print_info "必要なディレクトリを作成しています..."
     
-    mkdir -p "${SCRIPT_DIR}/tasks/"{backups,templates,config}
-    
-    if [[ ! -f "${SCRIPT_DIR}/tasks/config/template_config.yaml" ]]; then
-        cp "${SCRIPT_DIR}/config/template_config.yaml.example" "${SCRIPT_DIR}/tasks/config/template_config.yaml"
+    # ユーザーのbinディレクトリを確認/作成
+    local user_bin_dir="${HOME}/.local/bin"
+    if [[ ! -d "$user_bin_dir" ]]; then
+        mkdir -p "$user_bin_dir"
     fi
     
-    if [[ ! -f "${SCRIPT_DIR}/tasks/tasks.yaml" ]]; then
-        echo "tasks: []" > "${SCRIPT_DIR}/tasks/tasks.yaml"
+    # libディレクトリのコピー
+    if [[ ! -d "${user_bin_dir}/lib" ]]; then
+        cp -r "${SCRIPT_DIR}/lib" "${user_bin_dir}/lib"
+    fi
+    
+    # 設定ファイルのコピー
+    if [[ ! -f "${user_bin_dir}/config/template_config.yaml" ]]; then
+        mkdir -p "${user_bin_dir}/config"
+        cp "${SCRIPT_DIR}/config/template_config.yaml.example" "${user_bin_dir}/config/template_config.yaml"
     fi
     
     print_success "ディレクトリの作成が完了しました"
