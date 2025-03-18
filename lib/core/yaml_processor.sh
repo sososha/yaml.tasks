@@ -249,19 +249,34 @@ sort_tasks() {
     # ソート処理
     case "$sort_field" in
         "name"|"status"|"id")
-            yq eval ".tasks |= sort_by(.$sort_field)" -i "$TASKS_YAML_FILE"
+            local reverse=""
+            [[ "$sort_order" == "desc" ]] && reverse="-r"
+            
+            # 一時ファイルを作成
+            local temp_file
+            temp_file=$(mktemp)
+            
+            # タスクをソート
+            yq eval ".tasks |= sort_by(.$sort_field) | .tasks[] | .id" "$TASKS_YAML_FILE" | sort $reverse > "$temp_file"
+            
+            # ソートされたタスクで元のファイルを更新
+            {
+                echo "tasks:"
+                while read -r id; do
+                    yq eval ".tasks[] | select(.id == \"$id\")" "$TASKS_YAML_FILE"
+                done < "$temp_file"
+            } > "${TASKS_YAML_FILE}.new"
+            
+            mv "${TASKS_YAML_FILE}.new" "$TASKS_YAML_FILE"
+            rm -f "$temp_file"
             ;;
         *)
             log_error "不明なソートフィールド: $sort_field"
             return 1
             ;;
     esac
-
-    if [[ "$sort_order" == "desc" ]]; then
-        yq eval '.tasks = reverse(.tasks)' -i "$TASKS_YAML_FILE"
-    fi
-
-    log_info "タスクを並び替えました: $sort_field ($sort_order)"
+    
+    log_info "タスクをソートしました: $sort_field ($sort_order)"
     return 0
 }
 

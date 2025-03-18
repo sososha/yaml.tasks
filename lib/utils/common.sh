@@ -136,16 +136,19 @@ validate_array_length() {
 
 # スクリプトの実行に必要な環境変数の設定
 setup_environment() {
-    # タスク管理システムのルートディレクトリ
-    export TASK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    # タスク管理システムのルートディレクトリ（未設定の場合のみ設定）
+    if [[ -z "$TASK_DIR" ]]; then
+        export TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    fi
+    
     # 各種ディレクトリパスの設定
-    export TASKS_DIR="${TASK_ROOT}/tasks"
+    export TASKS_DIR="${TASK_DIR}/tasks"
     export TEMPLATES_DIR="${TASKS_DIR}/templates"
     export CONFIG_DIR="${TASKS_DIR}/config"
-    export LIB_DIR="${TASK_ROOT}/lib"
+    export LIB_DIR="${TASK_DIR}/lib"
     
     log $LOG_LEVEL_DEBUG "Environment setup completed"
-    log $LOG_LEVEL_DEBUG "TASK_ROOT: ${TASK_ROOT}"
+    log $LOG_LEVEL_DEBUG "TASK_DIR: ${TASK_DIR}"
 }
 
 # 初期化時に環境をセットアップ
