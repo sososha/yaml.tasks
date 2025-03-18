@@ -67,12 +67,12 @@ generate_task_id() {
     
     # 環境変数を再評価して確実にカレントディレクトリのtasksを使用
     if type refresh_environment >/dev/null 2>&1; then
-        refresh_environment
+        refresh_environment >&2
     fi
     
     # タスクファイルのパスを明示的に設定
     local tasks_file="${TASKS_DIR}/tasks.yaml"
-    log_debug "generate_task_id: タスクファイル: ${tasks_file}"
+    log_debug "generate_task_id: タスクファイル: ${tasks_file}" >&2
     
     local next_number=1
     
@@ -238,14 +238,14 @@ add_task() {
     
     # 環境変数を再評価して確実にカレントディレクトリのtasksを使用
     if type refresh_environment >/dev/null 2>&1; then
-        refresh_environment
+        refresh_environment >&2
     fi
     
     # タスクデータファイルのパス
     local tasks_file="${TASKS_DIR}/tasks.yaml"
     
-    log_debug "add_task: カレントディレクトリ: $(pwd)"
-    log_debug "add_task: タスクファイル: ${tasks_file}"
+    log_debug "add_task: カレントディレクトリ: $(pwd)" >&2
+    log_debug "add_task: タスクファイル: ${tasks_file}" >&2
     
     # タスクファイルが存在しない場合は作成
     if [[ ! -f "$tasks_file" ]]; then
@@ -321,11 +321,11 @@ add_task() {
 task_add() {
     # 環境変数を再評価して確実にカレントディレクトリのtasksを使用
     if type refresh_environment >/dev/null 2>&1; then
-        refresh_environment
+        refresh_environment >&2
     fi
     
-    log_debug "task_add: カレントディレクトリ: $(pwd)"
-    log_debug "task_add: TASKS_DIR: ${TASKS_DIR}"
+    log_debug "task_add: カレントディレクトリ: $(pwd)" >&2
+    log_debug "task_add: TASKS_DIR: ${TASKS_DIR}" >&2
     
     # メイン処理を呼び出す
     main "$@"
