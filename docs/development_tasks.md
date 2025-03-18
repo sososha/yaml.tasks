@@ -54,7 +54,7 @@
   - [x] エラーハンドリング
 - [x] task_subtask.shの修正（YAMLデータ形式対応）
 - [ ] task_status.shの修正（YAMLデータ形式対応）
-- [ ] task_list.shの修正（YAMLデータ形式対応）
+- [x] task_list.shの修正（YAMLデータ形式対応）
 - [ ] task_template.shの新規作成（テンプレート操作）
 - [ ] task_sync.shの新規作成（データと表示の同期）
 - [x] task_sort.shの修正（YAMLデータ形式対応）
