@@ -1,0 +1,30 @@
+# テンプレート設定ファイル
+
+# 現在使用中のテンプレート
+current_template: "default"
+
+# ステータスシンボルのマッピング
+status_symbols:
+  not_started: "□"
+  in_progress: "⚡"
+  completed: "✓"
+
+# レイアウト設定
+layout:
+  indent_char: "  "
+  task_format: "${status} ${name} (ID: ${id})"
+  description_format: "${indent}Description: ${description}"
+  concerns_format: "${indent}Concerns: ${concerns}"
+  statistics_format: |
+    
+    Task Statistics:
+    Completed: ${completed_count}
+    In Progress: ${in_progress_count}
+    Not Started: ${not_started_count}
+    Total: ${total_count}
+
+# 表示オプション
+display_options:
+  show_empty_fields: false
+  show_statistics: true
+  show_hierarchy: true 
