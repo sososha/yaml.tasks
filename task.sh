@@ -98,9 +98,13 @@ show_help() {
   template  テンプレートの管理
   update    タスク管理システムの更新
   uninstall タスク管理システムのアンインストール
+  debug     デバッグモードの切り替え
 
 オプション:
-  -h, --help   ヘルプの表示
+  -h, --help      ヘルプの表示
+  -d, --debug     デバッグモードを有効化
+  --no-debug      デバッグモードを無効化
+  -v, --version   バージョン情報の表示
 
 詳細なヘルプは 'task <コマンド> --help' で確認できます。
 EOF
@@ -118,6 +122,18 @@ main() {
         show_help
         return 0
     fi
+
+    # デバッグフラグの処理（共通モジュールのロード前に行う）
+    for arg in "$@"; do
+        case "$arg" in
+            -d|--debug)
+                export TASK_DEBUG=1
+                ;;
+            --no-debug)
+                export TASK_DEBUG=0
+                ;;
+        esac
+    done
 
     # 現在の作業ディレクトリに基づいて環境変数を再評価
     if type refresh_environment &>/dev/null; then
@@ -156,101 +172,75 @@ main() {
             fi
             ;;
         add)
-            # 環境変数を再評価して、確実にカレントディレクトリを利用
+            # 環境変数を再評価（カレントディレクトリのtasksを使用するため）
             refresh_environment
-            
-            # SCRIPT_DIRを元の値に戻す
-            SCRIPT_DIR="$ORIGINAL_SCRIPT_DIR"
-            
-            # task_add.shのtask_add関数を呼び出す
-            ADD_PATH=$(find_module_path "commands/task_add.sh")
-            echo "DEBUG: ADD_PATH: $ADD_PATH" >&2
-            
-            if [[ -n "$ADD_PATH" ]]; then
-                echo "DEBUG: Sourcing task_add.sh from: $ADD_PATH" >&2
-                source "$ADD_PATH"
+
+            # task_add.shを見つけて読み込む
+            local task_add_file="${SCRIPT_DIR}/lib/commands/task_add.sh"
+            if [[ -f "$task_add_file" ]]; then
+                source "$task_add_file"
+            fi
+
+            # 関数をエクスポートして子プロセスからも見えるようにする
+            export -f task_add add_task generate_task_id 2>/dev/null || true
+
+            # task_add関数が存在すれば呼び出す
+            if type task_add >/dev/null 2>&1; then
+                # 引数を解析
+                local task_name=""
+                local description=""
+                local concerns=""
+                local parent_id=""
+                local custom_prefix=""
+                local start_num=""
                 
-                # 関数が読み込まれたか確認
-                declare -f task_add >/dev/null 2>&1
-                echo "DEBUG: task_add function exists: $?" >&2
+                shift # "add"をシフトして残りの引数を処理
                 
-                declare -f add_task >/dev/null 2>&1
-                echo "DEBUG: add_task function exists: $?" >&2
+                while [[ $# -gt 0 ]]; do
+                    case "$1" in
+                        -t|--task)
+                            task_name="$2"
+                            shift 2
+                            ;;
+                        -d|--description)
+                            description="$2"
+                            shift 2
+                            ;;
+                        -c|--concerns)
+                            concerns="$2"
+                            shift 2
+                            ;;
+                        -p|--parent)
+                            parent_id="$2"
+                            shift 2
+                            ;;
+                        --prefix)
+                            custom_prefix="$2"
+                            shift 2
+                            ;;
+                        --start-num)
+                            start_num="$2"
+                            shift 2
+                            ;;
+                        *)
+                            conditional_log_debug "オプション: $1 が見つかりません"
+                            log_error "不明なオプション: $1"
+                            return 1
+                            ;;
+                    esac
+                done
                 
-                declare -f generate_task_id >/dev/null 2>&1
-                echo "DEBUG: generate_task_id function exists: $?" >&2
-                
-                # 関数をエクスポートして子プロセスからも見えるようにする
-                export -f task_add 2>/dev/null || true
-                export -f add_task 2>/dev/null || true
-                export -f generate_task_id 2>/dev/null || true
-                
-                # 関数が存在するか確認してから呼び出す
-                if type task_add &>/dev/null; then
-                    echo "DEBUG: Calling task_add function" >&2
-                    task_add "$@"
-                else
-                    # 関数が見つからない場合は直接スクリプトのmain処理を行う
-                    echo "DEBUG: task_add function not found, running fallback code" >&2
-                    # タスク名などを解析する処理を追加
-                    local task_name=""
-                    local description=""
-                    local concerns=""
-                    local parent_id=""
-                    local custom_prefix=""
-                    local start_num=""
-                    
-                    # 引数の解析
-                    while [[ $# -gt 0 ]]; do
-                        case "$1" in
-                            -n|--name)
-                                task_name="$2"
-                                shift 2
-                                ;;
-                            -d|--description)
-                                description="$2"
-                                shift 2
-                                ;;
-                            -c|--concerns)
-                                concerns="$2"
-                                shift 2
-                                ;;
-                            -p|--parent)
-                                parent_id="$2"
-                                shift 2
-                                ;;
-                            --prefix)
-                                custom_prefix="$2"
-                                shift 2
-                                ;;
-                            --start-num)
-                                start_num="$2"
-                                shift 2
-                                ;;
-                            -h|--help)
-                                show_add_help
-                                return 0
-                                ;;
-                            *)
-                                log_error "不明なオプション: $1"
-                                show_add_help
-                                return 1
-                                ;;
-                        esac
-                    done
-                    
-                    if [[ -z "$task_name" ]]; then
-                        log_error "タスク名は必須です"
-                        show_add_help
-                        return 1
-                    fi
-                    
-                    # ここでadd_taskを呼び出すか、別の方法でタスクを追加
-                    log_error "タスク追加機能の実装が見つかりません"
+                # 必須項目のチェック
+                if [[ -z "$task_name" ]]; then
+                    log_error "タスク名は必須です (--task)"
                     return 1
                 fi
+                
+                # タスク追加処理を実行
+                task_add "$task_name" "$description" "$concerns" "$parent_id" "$custom_prefix" "$start_num"
             else
-                log_error "タスク追加機能が見つかりません"
+                conditional_log_debug "refresh_environment function not found"
+                log_error "タスク追加機能は実装されていません"
                 return 1
             fi
             ;;
@@ -393,6 +383,39 @@ main() {
             ;;
         -v|--version)
             show_version
+            ;;
+        debug)
+            # デバッグモードの切り替え
+            if type toggle_debug_mode &>/dev/null; then
+                toggle_debug_mode
+            else
+                echo "デバッグ機能が見つかりません"
+                return 1
+            fi
+            ;;
+        -d|--debug)
+            # デバッグモードを有効化して最初のコマンドを実行
+            if type enable_debug_mode &>/dev/null; then
+                enable_debug_mode
+                if [[ $# -gt 0 ]]; then
+                    main "$@"
+                fi
+            else
+                echo "デバッグ機能が見つかりません"
+                return 1
+            fi
+            ;;
+        --no-debug)
+            # デバッグモードを無効化して最初のコマンドを実行
+            if type disable_debug_mode &>/dev/null; then
+                disable_debug_mode
+                if [[ $# -gt 0 ]]; then
+                    main "$@"
+                fi
+            else
+                echo "デバッグ機能が見つかりません"
+                return 1
+            fi
             ;;
         *)
             log_error "不明なコマンド: $command"

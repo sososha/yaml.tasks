@@ -72,7 +72,7 @@ generate_task_id() {
     
     # タスクファイルのパスを明示的に設定
     local tasks_file="${TASKS_DIR}/tasks.yaml"
-    log_debug "generate_task_id: タスクファイル: ${tasks_file}" >&2
+    conditional_log_debug "generate_task_id: タスクファイル: ${tasks_file}"
     
     local next_number=1
     
@@ -231,87 +231,84 @@ fi
 # タスクを追加
 add_task() {
     local task_id="$1"
-    local name="$2"
+    local task_name="$2"
     local description="$3"
     local concerns="$4"
     local parent_id="$5"
     
-    # 環境変数を再評価して確実にカレントディレクトリのtasksを使用
-    if type refresh_environment >/dev/null 2>&1; then
-        refresh_environment >&2
-    fi
-    
-    # タスクデータファイルのパス
     local tasks_file="${TASKS_DIR}/tasks.yaml"
+    conditional_log_debug "add_task: タスクファイル: ${tasks_file}"
     
-    log_debug "add_task: カレントディレクトリ: $(pwd)" >&2
-    log_debug "add_task: タスクファイル: ${tasks_file}" >&2
-    
-    # タスクファイルが存在しない場合は作成
+    # ファイルがなければ作成
     if [[ ! -f "$tasks_file" ]]; then
         echo "tasks: []" > "$tasks_file"
     fi
     
-    # 新しいタスクのYAMLフォーマット
-    local task_yaml=""
-    task_yaml+="  - id: \"$task_id\"\n"
-    task_yaml+="    name: \"$name\"\n"
-    task_yaml+="    status: \"not_started\"\n"
+    # タスクの内容をYAML形式の一時ファイルに作成
+    local temp_file
+    temp_file=$(mktemp)
     
-    if [[ -n "$description" ]]; then
-        task_yaml+="    description: \"$description\"\n"
-    fi
-    
-    if [[ -n "$concerns" ]]; then
-        task_yaml+="    concerns: \"$concerns\"\n"
-    fi
-    
-    if [[ -n "$parent_id" ]]; then
-        task_yaml+="    parent: \"$parent_id\"\n"
-    fi
-    
-    # タスクをYAMLファイルに追加
-    if [[ -s "$tasks_file" ]]; then
-        # タスクが既に存在するかチェック
-        if yq eval '.tasks[] | select(.id == "'"$task_id"'")' "$tasks_file" | grep -q .; then
-            log_error "タスクIDが既に存在します: $task_id"
-            return 1
-        fi
-        
-        # タスクを追加
-        local temp_file="$(mktemp)"
-        yq eval '.tasks += [{}]' "$tasks_file" > "$temp_file"
-        
-        # 最後のタスクに値を設定
-        local index
-        index=$(yq eval '.tasks | length - 1' "$temp_file")
-        
-        yq eval ".tasks[$index].id = \"$task_id\"" -i "$temp_file"
-        yq eval ".tasks[$index].name = \"$name\"" -i "$temp_file"
-        yq eval ".tasks[$index].status = \"not_started\"" -i "$temp_file"
-        
+    # タスクデータの整形
+    {
+        echo "  - id: $task_id"
+        echo "    name: $task_name"
         if [[ -n "$description" ]]; then
-            yq eval ".tasks[$index].description = \"$description\"" -i "$temp_file"
+            # 複数行記述用のリテラルブロックスカラー記法
+            echo "    description: |"
+            echo "$description" | sed 's/^/      /'
+        else
+            echo "    description: ''"
         fi
         
         if [[ -n "$concerns" ]]; then
-            yq eval ".tasks[$index].concerns = \"$concerns\"" -i "$temp_file"
+            echo "    concerns: |"
+            echo "$concerns" | sed 's/^/      /'
+        else
+            echo "    concerns: ''"
         fi
         
         if [[ -n "$parent_id" ]]; then
-            yq eval ".tasks[$index].parent = \"$parent_id\"" -i "$temp_file"
+            echo "    parent: $parent_id"
         fi
         
-        # 元のファイルを更新
-        mv "$temp_file" "$tasks_file"
+        echo "    status: todo"
+        echo "    created_at: $(date +%Y-%m-%d)"
+        echo "    result: ''"
+        echo "    result_concerns: ''"
+    } > "$temp_file"
+    
+    # YAMLファイルにタスクを挿入
+    if ! grep -q "tasks:" "$tasks_file"; then
+        # tasksキーがない場合は追加
+        echo "tasks:" > "${tasks_file}.new"
+        cat "$temp_file" >> "${tasks_file}.new"
+        mv "${tasks_file}.new" "$tasks_file"
     else
-        # 新規ファイルの場合
-        echo -e "tasks:\n$task_yaml" > "$tasks_file"
+        # 既存のtasksキーにタスクを追加
+        if grep -q "tasks: \[\]" "$tasks_file"; then
+            # 空配列の場合
+            sed -i '' 's/tasks: \[\]/tasks:/' "$tasks_file"
+            cat "$temp_file" >> "$tasks_file"
+        else
+            # 既存のタスクがある場合
+            (head -1 "$tasks_file"; cat "$temp_file"; tail +2 "$tasks_file") > "${tasks_file}.new"
+            mv "${tasks_file}.new" "$tasks_file"
+        fi
     fi
     
-    # Gitリポジトリが存在する場合はコミット
-    if [[ -d "${CURRENT_TASKS_DIR}/.git" ]]; then
-        (cd "${CURRENT_TASKS_DIR}" && git add "$tasks_file" && git commit -m "🆕 タスクを追加: $task_id - $name")
+    # 一時ファイルの削除
+    rm -f "$temp_file"
+    
+    conditional_log_debug "add_task: タスク $task_id を追加しました"
+    
+    # Gitリポジトリが存在する場合、変更をコミット
+    if [[ -d "${TASKS_DIR}/.git" ]]; then
+        (
+            cd "$TASKS_DIR" || return
+            git add "$tasks_file"
+            git commit -m "タスク $task_id を追加: $task_name" >/dev/null 2>&1
+        )
+        conditional_log_debug "add_task: Gitにコミットしました"
     fi
     
     return 0
@@ -324,8 +321,7 @@ task_add() {
         refresh_environment >&2
     fi
     
-    log_debug "task_add: カレントディレクトリ: $(pwd)" >&2
-    log_debug "task_add: TASKS_DIR: ${TASKS_DIR}" >&2
+    conditional_log_debug "task_add: 環境変数 TASKS_DIR=${TASKS_DIR}"
     
     # メイン処理を呼び出す
     main "$@"

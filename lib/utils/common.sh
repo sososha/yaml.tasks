@@ -15,8 +15,54 @@ LOG_LEVEL_WARN=1
 LOG_LEVEL_INFO=2
 LOG_LEVEL_DEBUG=3
 
-# 現在のログレベル（デフォルトはINFO）
-CURRENT_LOG_LEVEL=$LOG_LEVEL_INFO
+# デバッグモードのフラグ（デフォルトはオフ）
+DEBUG_MODE=0
+
+# 現在のログレベルのデフォルト設定
+# デバッグモードがオフの場合はINFO、オンの場合はDEBUG
+if [ "$DEBUG_MODE" -eq 1 ]; then
+    CURRENT_LOG_LEVEL=$LOG_LEVEL_DEBUG
+else
+    CURRENT_LOG_LEVEL=$LOG_LEVEL_INFO
+fi
+
+# 環境変数でデバッグモードが指定されていれば優先する
+if [ "${TASK_DEBUG:-0}" -eq 1 ]; then
+    DEBUG_MODE=1
+    CURRENT_LOG_LEVEL=$LOG_LEVEL_DEBUG
+fi
+
+# デバッグモードをオンにする
+enable_debug_mode() {
+    DEBUG_MODE=1
+    CURRENT_LOG_LEVEL=$LOG_LEVEL_DEBUG
+    export TASK_DEBUG=1
+    log_debug "デバッグモードが有効になりました"
+}
+
+# デバッグモードをオフにする
+disable_debug_mode() {
+    DEBUG_MODE=0
+    CURRENT_LOG_LEVEL=$LOG_LEVEL_INFO
+    export TASK_DEBUG=0
+    echo "デバッグモードが無効になりました"
+}
+
+# デバッグモードの状態を切り替える
+toggle_debug_mode() {
+    if [ "$DEBUG_MODE" -eq 1 ]; then
+        disable_debug_mode
+    else
+        enable_debug_mode
+    fi
+}
+
+# デバッグログは条件付きで出力する
+conditional_log_debug() {
+    if [ "$DEBUG_MODE" -eq 1 ]; then
+        log_debug "$@"
+    fi
+}
 
 # タスク管理システムのルートディレクトリを設定
 if [ -z "$TASK_DIR" ]; then
