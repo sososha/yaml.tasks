@@ -3,7 +3,7 @@
 # テスト用の共通変数
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$TEST_DIR/.." && pwd)"
-TEST_WORKSPACE="/tmp/task_test_$(date +%s)"
+TEST_WORKSPACE="/tmp/task_test_$(date +%s)_$$"  # プロセスIDを追加
 
 # 色付きの出力用の変数
 RED='\033[0;31m'
@@ -11,28 +11,84 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# 依存関係のチェック
+check_dependencies() {
+    local missing_deps=()
+    
+    # yqコマンドのチェック
+    if ! command -v yq &> /dev/null; then
+        missing_deps+=("yq")
+    fi
+    
+    # jqコマンドのチェック
+    if ! command -v jq &> /dev/null; then
+        missing_deps+=("jq")
+    fi
+    
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        echo -e "${RED}エラー: 必要な依存関係が見つかりません${NC}"
+        echo "以下のツールをインストールしてください:"
+        printf '%s\n' "${missing_deps[@]}"
+        return 1
+    fi
+    
+    return 0
+}
+
 # テスト用のヘルパー関数
 setup_test_workspace() {
-    mkdir -p "$TEST_WORKSPACE"
-    cd "$TEST_WORKSPACE"
+    # 既存のワークスペースをクリーンアップ
+    cleanup_test_workspace
+    
+    # 新しいワークスペースの作成
+    if ! mkdir -p "$TEST_WORKSPACE"; then
+        echo -e "${RED}エラー: テストワークスペースの作成に失敗しました${NC}"
+        return 1
+    fi
+    
+    if ! cd "$TEST_WORKSPACE"; then
+        echo -e "${RED}エラー: テストワークスペースへの移動に失敗しました${NC}"
+        return 1
+    fi
     
     # 必要なディレクトリとファイルをコピー
-    mkdir -p lib/{core,commands,utils} config templates tasks
-    cp -r "$PROJECT_ROOT/lib" "$TEST_WORKSPACE/"
-    cp -r "$PROJECT_ROOT/config" "$TEST_WORKSPACE/"
-    cp -r "$PROJECT_ROOT/templates" "$TEST_WORKSPACE/"
-    cp "$PROJECT_ROOT/task.sh" "$TEST_WORKSPACE/"
+    local dirs=("lib/core" "lib/commands" "lib/utils" "config" "templates" "tasks")
+    for dir in "${dirs[@]}"; do
+        if ! mkdir -p "$dir"; then
+            echo -e "${RED}エラー: ディレクトリ作成に失敗しました: $dir${NC}"
+            return 1
+        fi
+    done
+    
+    # ファイルのコピー
+    if ! cp -r "$PROJECT_ROOT/lib" "$TEST_WORKSPACE/" || \
+       ! cp -r "$PROJECT_ROOT/config" "$TEST_WORKSPACE/" || \
+       ! cp -r "$PROJECT_ROOT/templates" "$TEST_WORKSPACE/" || \
+       ! cp "$PROJECT_ROOT/task.sh" "$TEST_WORKSPACE/"; then
+        echo -e "${RED}エラー: ファイルのコピーに失敗しました${NC}"
+        return 1
+    fi
     
     # テスト用の設定を初期化
     echo "current_template: default" > "$TEST_WORKSPACE/config/template_config.yaml"
     echo "tasks: []" > "$TEST_WORKSPACE/tasks/tasks.yaml"
     touch "$TEST_WORKSPACE/tasks/project.tasks"
+    
+    # 実行権限の付与
+    chmod +x "$TEST_WORKSPACE/task.sh"
+    chmod +x "$TEST_WORKSPACE"/lib/commands/*.sh
+    
+    return 0
 }
 
 cleanup_test_workspace() {
     if [[ -d "$TEST_WORKSPACE" ]]; then
-        rm -rf "$TEST_WORKSPACE"
+        if ! rm -rf "$TEST_WORKSPACE"; then
+            echo -e "${RED}警告: テストワークスペースのクリーンアップに失敗しました${NC}"
+            return 1
+        fi
     fi
+    return 0
 }
 
 # アサーション関数
@@ -130,8 +186,19 @@ assert_yaml_path_equals() {
     local expected="$3"
     local message="${4:-}"
     
+    if [[ ! -f "$file" ]]; then
+        echo -e "${RED}✗ テスト失敗${NC}${message:+: $message}"
+        echo "  YAMLファイルが存在しません: $file"
+        return 1
+    fi
+    
     local actual
-    actual=$(yq eval "$path" "$file")
+    if ! actual=$(yq eval "$path" "$file" 2>/dev/null); then
+        echo -e "${RED}✗ テスト失敗${NC}${message:+: $message}"
+        echo "  YAMLパスの評価に失敗: $path"
+        echo "  ファイル: $file"
+        return 1
+    fi
     
     if [[ "$actual" == "$expected" ]]; then
         echo -e "${GREEN}✓ テスト成功${NC}${message:+: $message}"
@@ -196,4 +263,9 @@ run_all_tests() {
     echo "失敗: $failed_tests"
     
     return $failed_tests
-} 
+}
+
+# メイン処理
+if ! check_dependencies; then
+    exit 1
+fi 
