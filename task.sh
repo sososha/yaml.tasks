@@ -1,54 +1,59 @@
 #!/bin/bash
 
-# タスク管理システムのメインスクリプト
+# スクリプトのディレクトリを取得（macOS対応）
+get_script_dir() {
+    SOURCE="${BASH_SOURCE[0]}"
+    while [ -h "$SOURCE" ]; do
+        DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+        SOURCE="$(readlink "$SOURCE")"
+        [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+    done
+    echo "$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+}
 
-# スクリプトのディレクトリを取得
-SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+SCRIPT_DIR="$(get_script_dir)"
 TASK_DIR="$(pwd)"
 LIB_DIR="${SCRIPT_DIR}/lib"
 
-# 共通ユーティリティの読み込み
-source "${LIB_DIR}/utils/common.sh"
-source "${LIB_DIR}/utils/validators.sh"
-
-# バージョン情報
 VERSION="0.1.0"
 
-# ヘルプメッセージの表示
+# コマンドの使い方を表示
 show_help() {
-    cat << EOF
+    cat << HELP
 Task Management System v${VERSION}
 
-Usage:
-    task <command> [options] [arguments]
+使い方:
+    task <command> [options]
 
-Commands:
-    start       Initialize the task management system
-    init        Re-initialize the system (preserves existing data)
-    add         Add new task(s)
-    delete      Delete task(s)
-    subtask     Add subtask(s) to an existing task
-    status      Change task status
-    list        List all tasks
-    template    Manage task templates
-    sync        Synchronize task data and display
-    sort        Sort tasks
-    validate    Validate task data integrity
-    edit        Edit an existing task
-    help        Show this help message
+コマンド:
+    start       タスク管理を開始（初期化）
+    add         タスクを追加
+    list        タスク一覧を表示
+    edit        タスクを編集
+    delete      タスクを削除
+    help        このヘルプを表示
 
-Options:
-    -h, --help     Show this help message
-    -v, --version  Show version information
-
-For more information about a command:
-    task help <command>
-EOF
+オプション:
+    -h, --help     ヘルプを表示
+    -v, --version  バージョンを表示
+HELP
 }
 
-# バージョン情報の表示
+# バージョン情報を表示
 show_version() {
     echo "Task Management System v${VERSION}"
+}
+
+# タスク管理の初期化
+init_tasks() {
+    if [ ! -d "tasks" ]; then
+        mkdir -p tasks/backups
+        mkdir -p tasks/templates
+        echo "tasks:" > tasks/tasks.yaml
+        echo "タスク管理システムを初期化しました"
+    else
+        echo "タスク管理システムは既に初期化されています"
+    fi
 }
 
 # コマンドの実行
@@ -58,92 +63,70 @@ execute_command() {
     
     case "$command" in
         "start")
-            source "${LIB_DIR}/commands/task_start.sh"
-            main "$@"
-            ;;
-        "init")
-            source "${LIB_DIR}/commands/task_init.sh"
-            main "$@"
+            init_tasks
             ;;
         "add")
-            source "${LIB_DIR}/commands/task_add.sh"
-            main "$@"
-            ;;
-        "delete")
-            source "${LIB_DIR}/commands/task_delete.sh"
-            main "$@"
-            ;;
-        "subtask")
-            source "${LIB_DIR}/commands/task_subtask.sh"
-            main "$@"
-            ;;
-        "status")
-            source "${LIB_DIR}/commands/task_status.sh"
-            main "$@"
+            if [ -f "${LIB_DIR}/commands/task_add.sh" ]; then
+                source "${LIB_DIR}/commands/task_add.sh"
+                main "$@"
+            else
+                echo "エラー: コマンドの実装が見つかりません"
+                exit 1
+            fi
             ;;
         "list")
-            source "${LIB_DIR}/commands/task_list.sh"
-            main "$@"
-            ;;
-        "template")
-            source "${LIB_DIR}/commands/task_template.sh"
-            main "$@"
-            ;;
-        "sync")
-            source "${LIB_DIR}/commands/task_sync.sh"
-            main "$@"
-            ;;
-        "sort")
-            source "${LIB_DIR}/commands/task_sort.sh"
-            main "$@"
-            ;;
-        "validate")
-            source "${LIB_DIR}/commands/task_validate.sh"
-            main "$@"
+            if [ -f "${LIB_DIR}/commands/task_list.sh" ]; then
+                source "${LIB_DIR}/commands/task_list.sh"
+                main "$@"
+            else
+                echo "エラー: コマンドの実装が見つかりません"
+                exit 1
+            fi
             ;;
         "edit")
-            source "${LIB_DIR}/commands/task_edit.sh"
-            main "$@"
-            ;;
-        "help")
-            if [[ $# -eq 0 ]]; then
-                show_help
-            else
-                source "${LIB_DIR}/commands/task_help.sh"
+            if [ -f "${LIB_DIR}/commands/task_edit.sh" ]; then
+                source "${LIB_DIR}/commands/task_edit.sh"
                 main "$@"
+            else
+                echo "エラー: コマンドの実装が見つかりません"
+                exit 1
+            fi
+            ;;
+        "delete")
+            if [ -f "${LIB_DIR}/commands/task_delete.sh" ]; then
+                source "${LIB_DIR}/commands/task_delete.sh"
+                main "$@"
+            else
+                echo "エラー: コマンドの実装が見つかりません"
+                exit 1
             fi
             ;;
         *)
-            echo "Error: Unknown command '$command'"
-            echo "Run 'task help' for usage information"
+            echo "エラー: 不明なコマンド '$command'"
+            echo "ヘルプを表示するには: task --help"
             exit 1
             ;;
     esac
 }
 
 # メイン処理
-main() {
-    # 引数がない場合はヘルプを表示
-    if [ $# -eq 0 ]; then
+case "$1" in
+    start|add|list|edit|delete)
+        execute_command "$@"
+        ;;
+    -h|--help)
         show_help
-        exit 0
-    fi
-
-    # オプションの処理
-    case $1 in
-        -h|--help)
+        ;;
+    -v|--version)
+        show_version
+        ;;
+    *)
+        if [ -z "$1" ]; then
             show_help
-            exit 0
-            ;;
-        -v|--version)
-            show_version
-            exit 0
-            ;;
-        *)
-            execute_command "$@"
-            ;;
-    esac
-}
-
-# スクリプトの実行
-main "$@" 
+        else
+            echo "エラー: 不明なコマンド '$1'"
+            echo "ヘルプを表示するには: task --help"
+            exit 1
+        fi
+        ;;
+esac 

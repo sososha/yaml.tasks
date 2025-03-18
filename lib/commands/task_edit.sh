@@ -1,17 +1,18 @@
 #!/bin/bash
 
 # スクリプトのディレクトリを取得
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PARENT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # タスク管理システムのルートディレクトリを設定
-TASK_DIR="$SCRIPT_DIR"
+TASK_DIR="$(pwd)"
 export TASK_DIR
 
 # 共通の設定と関数をインポート
-source "${SCRIPT_DIR}/lib/utils/common.sh"
-source "${SCRIPT_DIR}/lib/utils/validators.sh"
-source "${SCRIPT_DIR}/lib/core/yaml_processor.sh"
-source "${SCRIPT_DIR}/lib/core/template_engine.sh"
+source "${SCRIPT_DIR}/utils/common.sh"
+source "${SCRIPT_DIR}/utils/validators.sh"
+source "${SCRIPT_DIR}/core/yaml_processor.sh"
+source "${SCRIPT_DIR}/core/template_engine.sh"
 
 # 必要なディレクトリとファイルの存在確認
 ensure_directories() {
@@ -19,9 +20,14 @@ ensure_directories() {
     mkdir -p "${TASK_DIR}/tasks/config"
     mkdir -p "${TASK_DIR}/tasks/backups"
     
-    # テンプレート設定ファイルの作成（存在しない場合）
+    # テンプレートファイルが存在しない場合は作成
+    if [[ ! -f "${TASK_DIR}/tasks/templates/default.template" ]]; then
+        create_default_template
+    fi
+    
+    # 設定ファイルが存在しない場合は作成
     if [[ ! -f "${TASK_DIR}/tasks/config/template_config.yaml" ]]; then
-        echo "current_template: default" > "${TASK_DIR}/tasks/config/template_config.yaml"
+        create_default_config
     fi
     
     # タスクファイルの作成（存在しない場合）

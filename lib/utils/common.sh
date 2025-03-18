@@ -18,6 +18,12 @@ LOG_LEVEL_DEBUG=3
 # 現在のログレベル（デフォルトはINFO）
 CURRENT_LOG_LEVEL=$LOG_LEVEL_INFO
 
+# タスク管理システムのルートディレクトリを設定
+if [ -z "$TASK_DIR" ]; then
+    TASK_DIR="$(pwd)"
+    export TASK_DIR
+fi
+
 # ログ出力関数
 log() {
     local level=$1
@@ -46,7 +52,7 @@ log() {
 log_error() {
     local message="$1"
     if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_ERROR ]]; then
-        echo "エラー: $message" >&2
+        echo -e "${RED}エラー:${NC} $message" >&2
     fi
 }
 
@@ -54,7 +60,7 @@ log_error() {
 log_warn() {
     local message="$1"
     if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_WARN ]]; then
-        echo "警告: $message" >&2
+        echo -e "${YELLOW}警告:${NC} $message" >&2
     fi
 }
 
@@ -62,7 +68,7 @@ log_warn() {
 log_info() {
     local message="$1"
     if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_INFO ]]; then
-        echo "情報: $message"
+        echo -e "${GREEN}情報:${NC} $message"
     fi
 }
 
@@ -70,7 +76,7 @@ log_info() {
 log_debug() {
     local message="$1"
     if [[ $CURRENT_LOG_LEVEL -ge $LOG_LEVEL_DEBUG ]]; then
-        echo "デバッグ: $message"
+        echo -e "[DEBUG] $(date '+%Y-%m-%d %H:%M:%S') - $message" >&2
     fi
 }
 
@@ -168,11 +174,6 @@ validate_array_length() {
 
 # スクリプトの実行に必要な環境変数の設定
 setup_environment() {
-    # タスク管理システムのルートディレクトリ（未設定の場合のみ設定）
-    if [[ -z "$TASK_DIR" ]]; then
-        export TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-    fi
-    
     # 各種ディレクトリパスの設定
     export TASKS_DIR="${TASK_DIR}/tasks"
     export TEMPLATES_DIR="${TASKS_DIR}/templates"
