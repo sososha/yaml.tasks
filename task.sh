@@ -4,7 +4,7 @@
 
 # スクリプトのディレクトリを取得
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-TASK_DIR="$(dirname "$SCRIPT_DIR")/yaml.tasks"
+TASK_DIR="$(pwd)"
 
 # 共通の設定と関数をインポート
 source "${SCRIPT_DIR}/lib/utils/common.sh"
